@@ -257,10 +257,10 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
 }
 
 const DEFAULT_RESUME = {
-  name: 'Stacy Robinson',
-  tagline: 'IT Support Technician | Troubleshooting & Automation Tools | CompTIA A+ Candidate',
-  location: 'Meridian, ID', phone: '858-414-7994', email: 'stacyleerobinson@gmail.com',
-  linkedin: 'linkedin.com/in/sr0binson', portfolio: 's-rportfolio.vercel.app',
+  name: '',
+  tagline: '',
+  location: '',
+  linkedin: '', portfolio: '',
   summary: 'Tier 1 IT support professional with hands-on experience in hardware troubleshooting, device deployment, and end-user support across 12+ school sites. Proficient in Zendesk ticketing and clear communication with non-technical users. Six years in customer service and team leadership. Builds automation workflows using Make.com, Zapier, and Claude API. Pursuing CompTIA A+.',
   skills: 'Windows 10/11 • ChromeOS Enrollment & Recovery • macOS • Desktop Setup • Hardware Troubleshooting • Component-Level Repair • Zendesk • Tier 1 Support • Ticket Escalation • IT Asset Tracking • Documentation • Active Directory • ConnectWise • Google Admin Console • Cisco VoIP • Microsoft 365 • Google Workspace • Make.com • Zapier • Claude API • Prompt Engineering • Projector Installation • AV Diagnostics',
   experience: [
