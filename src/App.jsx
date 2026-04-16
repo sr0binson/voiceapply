@@ -191,7 +191,7 @@ function generateResumePDF(data) {
   doc.save(`${data.name.replace(/\s+/g,'_')}_Resume.pdf`)
 }
 
-function CoverLetterEditor({ coverLetter, jobTitle, company, onClose }) {
+function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile }) {
   const parseFromText = (text) => {
     if (!text) return { greeting: 'Dear Hiring Manager,', p1: '', p2: '', p3: '', date: '' }
     const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
@@ -209,8 +209,8 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose }) {
   }
   const parsed = parseFromText(coverLetter)
   const [data, setData] = useState({
-    name: 'Stacy Robinson', email: 'stacyleerobinson@gmail.com', phone: '858-414-7994',
-    linkedin: 'linkedin.com/in/sr0binson', portfolio: 's-rportfolio.vercel.app',
+  name: profile?.name || 'Your Name', email: profile?.email || '', phone: profile?.phone || '',
+    linkedin: profile?.linkedin || '', portfolio: profile?.portfolio || '',
     date: parsed.date, greeting: parsed.greeting, p1: parsed.p1, p2: parsed.p2, p3: parsed.p3,
   })
   const set = (k, v) => setData(d => ({ ...d, [k]: v }))
@@ -286,8 +286,8 @@ const DEFAULT_RESUME = {
   ]
 }
 
-function ResumeEditor({ onClose }) {
-  const [data, setData] = useState(DEFAULT_RESUME)
+function ResumeEditor({ onClose, profile }) {
+  const [data, setData] = useState({ ...DEFAULT_RESUME, name: profile?.name || DEFAULT_RESUME.name, email: profile?.email || DEFAULT_RESUME.email, phone: profile?.phone || DEFAULT_RESUME.phone, linkedin: profile?.linkedin || DEFAULT_RESUME.linkedin, portfolio: profile?.portfolio || DEFAULT_RESUME.portfolio })
   const set = (k, v) => setData(d => ({ ...d, [k]: v }))
   const setExp = (i, k, v) => setData(d => { const e = [...d.experience]; e[i] = { ...e[i], [k]: v }; return { ...d, experience: e } })
   const setBullet = (ei, bi, v) => setData(d => { const e = [...d.experience]; const b = [...e[ei].bullets]; b[bi] = v; e[ei] = { ...e[ei], bullets: b }; return { ...d, experience: e } })
@@ -428,8 +428,8 @@ export default function App() {
         {!profile && <OnboardingScreen onComplete={p => { setProfile(p); localStorage.setItem('va_profile', JSON.stringify(p)) }} />}
         {profile && tab === 'Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
         {tab === 'Documents' && (
-          docView === 'cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} />
-          : docView === 'resume' ? <ResumeEditor onClose={() => setDocView(null)} />
+          docView === 'cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
+          : docView === 'resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
           : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} />
         )}
         {tab === 'VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
