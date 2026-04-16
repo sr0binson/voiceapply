@@ -85,6 +85,7 @@ function Dots() {
   )
 }
 
+// ─── PDF Generation ───────────────────────────────────────────────────────────
 function generateCoverLetterPDF(data) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 72
@@ -97,7 +98,7 @@ function generateCoverLetterPDF(data) {
     doc.setFontSize(size)
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
     doc.setTextColor(...color)
-    const lines = doc.splitTextToSize(text, contentW)
+    const lines = doc.splitTextToSize(text || '', contentW)
     lines.forEach(line => {
       if (y > 720) { doc.addPage(); y = margin }
       doc.text(line, margin, y)
@@ -106,14 +107,14 @@ function generateCoverLetterPDF(data) {
   }
   const gap = (n = 12) => { y += n }
 
-  addText(data.name, { size: 18, bold: true, lineH: 22 })
+  addText(data.name || '', { size: 18, bold: true, lineH: 22 })
   gap(4)
   doc.setFontSize(9.5)
   doc.setFont('helvetica', 'normal')
   doc.setTextColor(100, 100, 96)
-  doc.text([data.email, data.phone].filter(Boolean).join('  |  '), margin, y)
+  if (data.email || data.phone) doc.text([data.email, data.phone].filter(Boolean).join('  |  '), margin, y)
   y += 13
-  doc.text([data.linkedin, data.portfolio].filter(Boolean).join('  |  '), margin, y)
+  if (data.linkedin || data.portfolio) doc.text([data.linkedin, data.portfolio].filter(Boolean).join('  |  '), margin, y)
   y += 13
   gap(4)
   doc.setDrawColor(200, 200, 196)
@@ -128,8 +129,8 @@ function generateCoverLetterPDF(data) {
   gap(4)
   addText('Best regards,', { size: 11 })
   gap(4)
-  addText(data.name, { size: 11, bold: true })
-  doc.save(`${data.name.replace(/\s+/g,'_')}_Cover_Letter.pdf`)
+  addText(data.name || '', { size: 11, bold: true })
+  doc.save(`${(data.name || 'Cover_Letter').replace(/\s+/g,'_')}_Cover_Letter.pdf`)
 }
 
 function generateResumePDF(data) {
@@ -142,6 +143,7 @@ function generateResumePDF(data) {
   const checkPage = (n = 20) => { if (y + n > 730) { doc.addPage(); y = margin } }
   const addLine = (text, opts = {}) => {
     const { size = 10.5, bold = false, color = [28,28,26], lineH = 15, indent = 0 } = opts
+    if (!text) return
     doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...color)
     doc.splitTextToSize(text, contentW - indent).forEach(line => { checkPage(); doc.text(line, margin + indent, y); y += lineH })
   }
@@ -152,11 +154,20 @@ function generateResumePDF(data) {
     doc.setDrawColor(28,28,26); doc.setLineWidth(1); doc.line(margin, y, pageW - margin, y); y += 10
   }
 
+  // Name
   doc.setFontSize(20); doc.setFont('helvetica', 'bold'); doc.setTextColor(28,28,26)
-  doc.text(data.name, margin, y); y += 24
-  if (data.tagline) { doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80,80,76); doc.text(data.tagline, margin, y); y += 16 }
+  doc.text(data.name || '', margin, y); y += 24
+
+  // Tagline
+  if (data.tagline) {
+    doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(80,80,76)
+    doc.text(data.tagline, margin, y); y += 16
+  }
+
+  // Contact
   doc.setFontSize(9.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100,100,96)
-  doc.text([data.location, data.phone, data.email, data.linkedin, data.portfolio].filter(Boolean).join('  •  '), margin, y); y += 6
+  const contactParts = [data.location, data.phone, data.email, data.linkedin, data.portfolio].filter(Boolean)
+  if (contactParts.length) { doc.text(contactParts.join('  •  '), margin, y); y += 6 }
   doc.setDrawColor(200,200,196); doc.setLineWidth(0.5); doc.line(margin, y, pageW - margin, y)
 
   if (data.summary) { sectionHeader('Summary'); addLine(data.summary, { lineH: 16 }) }
@@ -167,9 +178,9 @@ function generateResumePDF(data) {
     addLine(job.header, { bold: true, lineH: 16 })
     job.bullets?.forEach(b => {
       if (!b.trim()) return
-      doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(28,28,26)
       checkPage(18)
-      doc.text('●', margin, y)
+      doc.setFontSize(10.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(28,28,26)
+      doc.text('-', margin, y)
       doc.splitTextToSize(b, contentW - 14).forEach(line => { checkPage(); doc.text(line, margin + 14, y); y += 15 })
     })
     y += 4
@@ -188,9 +199,39 @@ function generateResumePDF(data) {
     data.education.forEach(e => addLine(e, { lineH: 15 }))
   }
 
-  doc.save(`${data.name.replace(/\s+/g,'_')}_Resume.pdf`)
+  doc.save(`${(data.name || 'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
 }
 
+// ─── Onboarding ───────────────────────────────────────────────────────────────
+function OnboardingScreen({ onComplete }) {
+  const [data, setData] = useState({ name: '', email: '', phone: '', linkedin: '', portfolio: '' })
+  const set = (k, v) => setData(d => ({ ...d, [k]: v }))
+  const ready = data.name.trim() && data.email.trim()
+  const field = { width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px', fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: C.surface, color: C.text, outline: 'none', boxSizing: 'border-box' }
+
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 4 }}>Welcome to VoiceApply <span style={{ color: C.cyan }}>✦</span></h1>
+      <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>Set up your profile. This goes in your cover letter header and resume.</p>
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[['name','Your name *',''],['email','Email *',''],['phone','Phone',''],['linkedin','LinkedIn URL','linkedin.com/in/yourname'],['portfolio','Portfolio URL','yoursite.com']].map(([k,l,ph]) => (
+            <div key={k}>
+              <Label>{l}</Label>
+              <input value={data[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={field} />
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <Btn primary onClick={() => onComplete(data)} disabled={!ready}>Get started →</Btn>
+          <p style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>Everything saved locally in your browser.</p>
+        </div>
+      </Card>
+    </div>
+  )
+}
+
+// ─── Cover Letter Editor ──────────────────────────────────────────────────────
 function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile }) {
   const parseFromText = (text) => {
     if (!text) return { greeting: 'Dear Hiring Manager,', p1: '', p2: '', p3: '', date: '' }
@@ -209,12 +250,26 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
   }
   const parsed = parseFromText(coverLetter)
   const [data, setData] = useState({
-  name: profile?.name || 'Your Name', email: profile?.email || '', phone: profile?.phone || '',
-    linkedin: profile?.linkedin || '', portfolio: profile?.portfolio || '',
-    date: parsed.date, greeting: parsed.greeting, p1: parsed.p1, p2: parsed.p2, p3: parsed.p3,
+    name: profile?.name || '',
+    email: profile?.email || '',
+    phone: profile?.phone || '',
+    linkedin: profile?.linkedin || '',
+    portfolio: profile?.portfolio || '',
+    date: parsed.date,
+    greeting: parsed.greeting,
+    p1: parsed.p1, p2: parsed.p2, p3: parsed.p3,
   })
   const set = (k, v) => setData(d => ({ ...d, [k]: v }))
-  const fullText = [data.name, `${data.email} | ${data.phone}`, `${data.linkedin} | ${data.portfolio}`, '', data.date, '', data.greeting, '', data.p1, '', data.p2, '', data.p3, '', 'Best regards,', data.name].join('\n')
+  const fullText = [
+    data.name,
+    `${data.email} | ${data.phone}`,
+    `${data.linkedin} | ${data.portfolio}`,
+    '', data.date, '',
+    data.greeting, '',
+    data.p1, '', data.p2, '', data.p3, '',
+    'Best regards,', data.name,
+  ].join('\n')
+
   const field = { width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: C.surface2, color: C.text, outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }
 
   return (
@@ -232,9 +287,16 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
       </div>
       <Card>
         <div style={{ padding: 16, borderRadius: 10, background: C.surface2, border: `1px solid ${C.border}`, marginBottom: 20 }}>
-          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{data.name}</div>
-          <div style={{ fontSize: 11, color: C.muted }}><a href={`mailto:${data.email}`} style={{ color: C.cyan }}>{data.email}</a> | {data.phone}</div>
-          <div style={{ fontSize: 11, color: C.muted }}><a href={`https://${data.linkedin}`} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>{data.linkedin}</a> | <a href={`https://${data.portfolio}`} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>{data.portfolio}</a></div>
+          <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 4 }}>{data.name || 'Your Name'}</div>
+          <div style={{ fontSize: 11, color: C.muted }}>
+            {data.email && <a href={`mailto:${data.email}`} style={{ color: C.cyan }}>{data.email}</a>}
+            {data.email && data.phone && ' | '}{data.phone}
+          </div>
+          <div style={{ fontSize: 11, color: C.muted }}>
+            {data.linkedin && <a href={`https://${data.linkedin}`} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>{data.linkedin}</a>}
+            {data.linkedin && data.portfolio && ' | '}
+            {data.portfolio && <a href={`https://${data.portfolio}`} target="_blank" rel="noreferrer" style={{ color: C.cyan }}>{data.portfolio}</a>}
+          </div>
         </div>
         <div style={{ marginBottom: 14 }}><Label>Date</Label><input value={data.date} onChange={e => set('date', e.target.value)} style={field} /></div>
         <div style={{ marginBottom: 14 }}><Label>Greeting</Label><input value={data.greeting} onChange={e => set('greeting', e.target.value)} style={field} /></div>
@@ -245,7 +307,7 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
           </div>
         ))}
         <div style={{ marginTop: 8, padding: '12px 16px', background: C.surface2, borderRadius: 8, fontSize: 13, color: C.muted }}>
-          Best regards,<br /><span style={{ fontWeight: 600, color: C.text }}>{data.name}</span>
+          Best regards,<br /><span style={{ fontWeight: 600, color: C.text }}>{data.name || 'Your Name'}</span>
         </div>
       </Card>
       <div style={{ marginTop: 16 }}>
@@ -256,45 +318,48 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
   )
 }
 
-const DEFAULT_RESUME = {
-  name: '',
-  tagline: '',
-  location: '',
-  linkedin: '', portfolio: '',
-  summary: 'Tier 1 IT support professional with hands-on experience in hardware troubleshooting, device deployment, and end-user support across 12+ school sites. Proficient in Zendesk ticketing and clear communication with non-technical users. Six years in customer service and team leadership. Builds automation workflows using Make.com, Zapier, and Claude API. Pursuing CompTIA A+.',
-  skills: 'Windows 10/11 • ChromeOS Enrollment & Recovery • macOS • Desktop Setup • Hardware Troubleshooting • Component-Level Repair • Zendesk • Tier 1 Support • Ticket Escalation • IT Asset Tracking • Documentation • Active Directory • ConnectWise • Google Admin Console • Cisco VoIP • Microsoft 365 • Google Workspace • Make.com • Zapier • Claude API • Prompt Engineering • Projector Installation • AV Diagnostics',
-  experience: [
-    { header: 'IT Support Intern – Client Services    Jan 2026 – Apr 2026    Boise School District – Boise, ID', bullets: [
-      'Contributed to a 4,600-device Chromebook deployment, personally processing 2,000+ devices in two days. Repaired 100+ Chromebooks (screens, trackpads, keycaps, motherboards, ChromeOS recovery) and participated in staff device refreshes: desktop setup, monitor swaps, and imaging from USB with Windows 11.',
-      'Replaced projectors end-to-end and configured audio and display settings. Conducted VoIP phone inventory across 7 sites; gained exposure to docking station setups across HP docks, Wavlink, and various display cable configurations.',
-      'Served as first point of contact for end-user and on-site technical support across 12+ school sites via Zendesk; built a custom ticket macro to streamline documentation. Shadowed help desk and gained exposure to Active Directory, ConnectWise, and Google Admin Console.',
-    ]},
-    { header: "Mate (Manager) / Crew Member    Oct 2019 – Apr 2026    Trader Joe's – WA & ID, Multiple Locations", bullets: [
-      'Promoted to Mate within 1.5 months, leading daily operations for a 20+ person team; worked across 4 locations total as crew member, consistently recognized for customer service and reliability. Received two "WOW" Customer Experience Awards.',
-      'Served as first responder during a serious on-site medical emergency; coordinated with emergency services, ensured customer safety, and completed corporate incident reporting.',
-    ]},
-  ],
-  projects: [
-    { name: 'Triagetron', tech: 'Google Apps Script · Gemini API · HTML/CSS', desc: 'Browser-based IT triage tool that reads a support knowledge base and returns tiered troubleshooting steps via AI.' },
-    { name: 'Household Automation System', tech: 'Claude · Make.com · Zapier · Google Calendar', desc: 'API-driven workflows automating scheduling, meal planning, and task delegation for a six-person household.' },
-    { name: 'Portfolio with AI Career Advocate', tech: 'Vercel · Claude API · HTML/CSS', desc: 'Live portfolio at s-rportfolio.vercel.app with a Claude-powered assistant answering visitor questions in real time.' },
-  ],
-  education: [
-    'CompTIA A+ – In Progress    Core 1 & Core 2 | Expected Summer 2026',
-    'Google IT Support Certificate    Technical Support Fundamentals · Bits and Bytes of Networking, Coursera',
-    'Google Project Management Certificate    Foundations of Project Management, Coursera',
-  ]
-}
+// ─── Resume Editor ────────────────────────────────────────────────────────────
+const DEFAULT_EXPERIENCE = [
+  {
+    header: 'Employer Name    Start – End    Company – Location',
+    bullets: ['Add your bullet points here.']
+  }
+]
+
+const DEFAULT_PROJECTS = [
+  { name: 'Project Name', tech: 'Tech Stack', desc: 'Brief description of what you built and why.' }
+]
+
+const DEFAULT_EDUCATION = [
+  'Certification or Degree    Details, Institution'
+]
 
 function ResumeEditor({ onClose, profile }) {
-  const [data, setData] = useState({ ...DEFAULT_RESUME, name: profile?.name || DEFAULT_RESUME.name, email: profile?.email || DEFAULT_RESUME.email, phone: profile?.phone || DEFAULT_RESUME.phone, linkedin: profile?.linkedin || DEFAULT_RESUME.linkedin, portfolio: profile?.portfolio || DEFAULT_RESUME.portfolio })
+  const [data, setData] = useState({
+    name: profile?.name || '',
+    tagline: '',
+    location: '',
+    phone: profile?.phone || '',
+    email: profile?.email || '',
+    linkedin: profile?.linkedin || '',
+    portfolio: profile?.portfolio || '',
+    summary: '',
+    skills: '',
+    experience: DEFAULT_EXPERIENCE,
+    projects: DEFAULT_PROJECTS,
+    education: DEFAULT_EDUCATION,
+  })
+
   const set = (k, v) => setData(d => ({ ...d, [k]: v }))
   const setExp = (i, k, v) => setData(d => { const e = [...d.experience]; e[i] = { ...e[i], [k]: v }; return { ...d, experience: e } })
   const setBullet = (ei, bi, v) => setData(d => { const e = [...d.experience]; const b = [...e[ei].bullets]; b[bi] = v; e[ei] = { ...e[ei], bullets: b }; return { ...d, experience: e } })
   const addBullet = (ei) => setData(d => { const e = [...d.experience]; e[ei] = { ...e[ei], bullets: [...e[ei].bullets, ''] }; return { ...d, experience: e } })
   const removeBullet = (ei, bi) => setData(d => { const e = [...d.experience]; e[ei] = { ...e[ei], bullets: e[ei].bullets.filter((_,i) => i !== bi) }; return { ...d, experience: e } })
   const setProj = (i, k, v) => setData(d => { const p = [...d.projects]; p[i] = { ...p[i], [k]: v }; return { ...d, projects: p } })
+  const addJob = () => setData(d => ({ ...d, experience: [...d.experience, { header: 'Employer Name    Start – End    Company – Location', bullets: [''] }] }))
+  const addProject = () => setData(d => ({ ...d, projects: [...d.projects, { name: '', tech: '', desc: '' }] }))
   const setEdu = (i, v) => setData(d => { const e = [...d.education]; e[i] = v; return { ...d, education: e } })
+  const addEdu = () => setData(d => ({ ...d, education: [...d.education, ''] }))
 
   const field = { width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: "'DM Sans', sans-serif", background: C.surface2, color: C.text, outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }
   const sec = { fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: C.dark, borderBottom: `1.5px solid ${C.dark}`, paddingBottom: 4, marginBottom: 12, marginTop: 24 }
@@ -310,29 +375,29 @@ function ResumeEditor({ onClose, profile }) {
       </div>
       <Card>
         <div style={sec}>Contact</div>
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 8 }}>
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
           {[['name','Name'],['location','Location'],['phone','Phone'],['email','Email'],['linkedin','LinkedIn'],['portfolio','Portfolio']].map(([k,l]) => (
             <div key={k}><Label>{l}</Label><input value={data[k]||''} onChange={e => set(k, e.target.value)} style={field} /></div>
           ))}
         </div>
-        <div style={{ marginBottom: 8 }}><Label>Title / Tagline</Label><input value={data.tagline||''} onChange={e => set('tagline', e.target.value)} style={field} /></div>
+        <div style={{ marginTop: 10 }}><Label>Title / Tagline</Label><input value={data.tagline||''} onChange={e => set('tagline', e.target.value)} style={field} /></div>
 
         <div style={sec}>Summary</div>
-        <textarea value={data.summary} onChange={e => set('summary', e.target.value)} rows={4} style={{ ...field, resize: 'vertical', marginBottom: 8 }} />
+        <textarea value={data.summary} onChange={e => set('summary', e.target.value)} rows={4} style={{ ...field, resize: 'vertical' }} />
 
         <div style={sec}>Skills</div>
-        <textarea value={data.skills} onChange={e => set('skills', e.target.value)} rows={3} style={{ ...field, resize: 'vertical', marginBottom: 4 }} />
-        <p style={{ fontSize: 11, color: C.faint, marginBottom: 8 }}>Separate with •</p>
+        <textarea value={data.skills} onChange={e => set('skills', e.target.value)} rows={3} style={{ ...field, resize: 'vertical' }} />
+        <p style={{ fontSize: 11, color: C.faint, marginTop: 4 }}>Separate with •</p>
 
         <div style={sec}>Experience</div>
         {data.experience.map((job, ei) => (
           <div key={ei} style={{ marginBottom: 16, padding: 16, background: C.surface2, borderRadius: 10, border: `1px solid ${C.border}` }}>
-            <Label>Job header</Label>
+            <Label>Job header (role, dates, company, location)</Label>
             <input value={job.header} onChange={e => setExp(ei, 'header', e.target.value)} style={{ ...field, marginBottom: 12 }} />
             <Label>Bullets</Label>
             {job.bullets.map((b, bi) => (
               <div key={bi} style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'flex-start' }}>
-                <span style={{ marginTop: 10, color: C.muted }}>●</span>
+                <span style={{ marginTop: 10, color: C.muted }}>-</span>
                 <textarea value={b} onChange={e => setBullet(ei, bi, e.target.value)} rows={2} style={{ ...field, flex: 1, resize: 'vertical' }} />
                 <button onClick={() => removeBullet(ei, bi)} style={{ marginTop: 8, background: 'none', border: 'none', cursor: 'pointer', color: C.red, fontSize: 18 }}>×</button>
               </div>
@@ -340,6 +405,7 @@ function ResumeEditor({ onClose, profile }) {
             <button onClick={() => addBullet(ei)} style={{ fontSize: 12, color: C.cyan, background: 'none', border: `1px solid ${C.cyanBorder}`, borderRadius: 6, padding: '4px 12px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add bullet</button>
           </div>
         ))}
+        <button onClick={addJob} style={{ fontSize: 12, color: C.cyan, background: 'none', border: `1px solid ${C.cyanBorder}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>+ Add job</button>
 
         <div style={sec}>Projects</div>
         {data.projects.map((p, i) => (
@@ -352,25 +418,28 @@ function ResumeEditor({ onClose, profile }) {
             <input value={p.desc} onChange={e => setProj(i,'desc',e.target.value)} style={field} />
           </div>
         ))}
+        <button onClick={addProject} style={{ fontSize: 12, color: C.cyan, background: 'none', border: `1px solid ${C.cyanBorder}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", marginBottom: 8 }}>+ Add project</button>
 
         <div style={sec}>Education & Certifications</div>
         {data.education.map((e, i) => (
           <div key={i} style={{ marginBottom: 8 }}><input value={e} onChange={ev => setEdu(i, ev.target.value)} style={field} /></div>
         ))}
+        <button onClick={addEdu} style={{ fontSize: 12, color: C.cyan, background: 'none', border: `1px solid ${C.cyanBorder}`, borderRadius: 6, padding: '6px 14px', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>+ Add entry</button>
       </Card>
     </div>
   )
 }
 
+// ─── App Root ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [tab, setTab] = useState('Analyze')
   const [apiKey, setApiKey] = useState(localStorage.getItem('va_key') || '')
   const [keySaved, setKeySaved] = useState(!!localStorage.getItem('va_key'))
   const [history, setHistory] = useState(() => loadStorage('va_history', []))
   const [voiceProfile, setVoiceProfile] = useState(() => loadStorage('va_voice', null))
+  const [profile, setProfile] = useState(() => loadStorage('va_profile', null))
   const [currentResult, setCurrentResult] = useState(null)
   const [docView, setDocView] = useState(null)
-  const [profile, setProfile] = useState(() => loadStorage('va_profile', null))
 
   function saveKey() {
     if (!apiKey.startsWith('sk-ant-')) { alert("Anthropic keys start with sk-ant-"); return }
@@ -381,7 +450,8 @@ export default function App() {
     const updated = [entry, ...history].slice(0, 50)
     setHistory(updated); localStorage.setItem('va_history', JSON.stringify(updated)); setCurrentResult(result)
   }
-  function onVoiceSaved(profile) { setVoiceProfile(profile); localStorage.setItem('va_voice', JSON.stringify(profile)) }
+  function onVoiceSaved(p) { setVoiceProfile(p); localStorage.setItem('va_voice', JSON.stringify(p)) }
+  function onProfileSaved(p) { setProfile(p); localStorage.setItem('va_profile', JSON.stringify(p)) }
 
   const lastWithCover = history.find(r => r.coverLetter)
 
@@ -394,52 +464,62 @@ export default function App() {
             <span style={{ fontSize: 18, fontWeight: 600, letterSpacing: '-0.02em' }}>VoiceApply</span>
             <span style={{ fontSize: 11, color: C.cyan, fontFamily: "'DM Mono', monospace" }}>✦ beta</span>
           </div>
-          <nav style={{ display: 'flex', gap: 2 }}>
-            {NAV.map(t => (
-              <button key={t} onClick={() => { setTab(t); setDocView(null) }} style={{
-                padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
-                fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
-                background: tab === t ? C.dark : 'transparent', color: tab === t ? '#fff' : C.muted, transition: 'all 0.15s',
-              }}>
-                {t}
-                {t === 'History' && history.length > 0 && <span style={{ marginLeft: 5, fontSize: 10, background: C.cyanDim, color: C.cyan, padding: '1px 5px', borderRadius: 10, fontFamily: 'monospace' }}>{history.length}</span>}
-                {t === 'VoicePrint' && !voiceProfile && <span style={{ marginLeft: 5, fontSize: 10, background: C.amberBg, color: C.amber, padding: '1px 5px', borderRadius: 10 }}>!</span>}
-              </button>
-            ))}
-          </nav>
+          {profile && (
+            <nav style={{ display: 'flex', gap: 2 }}>
+              {NAV.map(t => (
+                <button key={t} onClick={() => { setTab(t); setDocView(null) }} style={{
+                  padding: '7px 14px', borderRadius: 8, border: 'none', cursor: 'pointer',
+                  fontSize: 13, fontWeight: 500, fontFamily: "'DM Sans', sans-serif",
+                  background: tab === t ? C.dark : 'transparent', color: tab === t ? '#fff' : C.muted, transition: 'all 0.15s',
+                }}>
+                  {t}
+                  {t === 'History' && history.length > 0 && <span style={{ marginLeft: 5, fontSize: 10, background: C.cyanDim, color: C.cyan, padding: '1px 5px', borderRadius: 10, fontFamily: 'monospace' }}>{history.length}</span>}
+                  {t === 'VoicePrint' && !voiceProfile && <span style={{ marginLeft: 5, fontSize: 10, background: C.amberBg, color: C.amber, padding: '1px 5px', borderRadius: 10 }}>!</span>}
+                </button>
+              ))}
+            </nav>
+          )}
         </div>
       </header>
+
       <main style={{ maxWidth: 760, margin: '0 auto', padding: '48px 24px' }}>
-        {!keySaved && (
-          <div style={{ marginBottom: 32, padding: '14px 18px', borderRadius: 12, background: C.amberBg, border: `1px solid rgba(122,79,0,0.15)`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.06em' }}>API Key</span>
-            <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveKey()} placeholder="sk-ant-api03-..."
-              style={{ flex: 1, minWidth: 200, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontFamily: "'DM Mono', monospace", color: C.text }} />
-            <Btn small onClick={saveKey}>Save key</Btn>
-            <span style={{ fontSize: 11, color: C.faint, width: '100%' }}>Saved locally in your browser. Never sent anywhere except Anthropic's API.</span>
-          </div>
+        {!profile ? (
+          <OnboardingScreen onComplete={onProfileSaved} />
+        ) : (
+          <>
+            {!keySaved && (
+              <div style={{ marginBottom: 32, padding: '14px 18px', borderRadius: 12, background: C.amberBg, border: `1px solid rgba(122,79,0,0.15)`, display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 12 }}>
+                <span style={{ fontSize: 11, fontWeight: 600, color: C.amber, textTransform: 'uppercase', letterSpacing: '0.06em' }}>API Key</span>
+                <input type="password" value={apiKey} onChange={e => setApiKey(e.target.value)} onKeyDown={e => e.key === 'Enter' && saveKey()} placeholder="sk-ant-api03-..."
+                  style={{ flex: 1, minWidth: 200, background: 'transparent', border: 'none', outline: 'none', fontSize: 13, fontFamily: "'DM Mono', monospace", color: C.text }} />
+                <Btn small onClick={saveKey}>Save key</Btn>
+                <span style={{ fontSize: 11, color: C.faint, width: '100%' }}>Saved locally in your browser. Never sent anywhere except Anthropic's API.</span>
+              </div>
+            )}
+            {keySaved && (
+              <div style={{ marginBottom: 32, padding: '10px 16px', borderRadius: 12, background: C.greenBg, border: `1px solid rgba(45,106,79,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontSize: 12, fontWeight: 500, color: C.green }}>✓ API key saved</span>
+                <button onClick={() => { localStorage.removeItem('va_key'); setKeySaved(false); setApiKey('') }} style={{ fontSize: 12, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Change</button>
+              </div>
+            )}
+
+            {tab === 'Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
+            {tab === 'Documents' && (
+              docView === 'cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
+              : docView === 'resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
+              : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} />
+            )}
+            {tab === 'VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
+            {tab === 'History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
+          </>
         )}
-        {keySaved && (
-          <div style={{ marginBottom: 32, padding: '10px 16px', borderRadius: 12, background: C.greenBg, border: `1px solid rgba(45,106,79,0.15)`, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-            <span style={{ fontSize: 12, fontWeight: 500, color: C.green }}>✓ API key saved</span>
-            <button onClick={() => { localStorage.removeItem('va_key'); setKeySaved(false); setApiKey('') }} style={{ fontSize: 12, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Change</button>
-          </div>
-        )}
-        {!profile && <OnboardingScreen onComplete={p => { setProfile(p); localStorage.setItem('va_profile', JSON.stringify(p)) }} />}
-        {profile && tab === 'Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
-        {tab === 'Documents' && (
-          docView === 'cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
-          : docView === 'resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
-          : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} />
-        )}
-        {tab === 'VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
-        {tab === 'History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
       </main>
     </div>
   )
 }
 
-function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, setCurrentResult, setTab }) {
+// ─── Analyze Tab ──────────────────────────────────────────────────────────────
+function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, setCurrentResult, setTab, profile }) {
   const [jd, setJd] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadMsg, setLoadMsg] = useState('')
@@ -455,12 +535,19 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
     try {
       const voiceSection = voiceProfile?.analysis ? `\n\nCANDIDATE VOICE PROFILE:\n${voiceProfile.analysis.substring(0,800)}` : ''
       const resumeSection = voiceProfile?.resume ? `\n\nCANDIDATE RESUME:\n${voiceProfile.resume.substring(0,1400)}` : ''
+      const userName = profile?.name || 'Candidate'
+      const userContact = [profile?.email, profile?.phone].filter(Boolean).join(' | ')
+      const userLinks = [profile?.linkedin, profile?.portfolio].filter(Boolean).join(' | ')
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 2500, system: buildSystemPrompt(resumeSection, voiceSection), messages: [{ role: 'user', content: `Analyze this job posting:\n\n${jd}` }] }),
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514', max_tokens: 2500,
+          system: buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks),
+          messages: [{ role: 'user', content: `Analyze this job posting:\n\n${jd}` }],
+        }),
       })
-      if (!res.ok) { const e = await res.json().catch(()=>({})); throw new Error(e.error?.message||`API error ${res.status}`) }
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API error ${res.status}`) }
       const data = await res.json()
       onResult(JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim()))
     } catch(e) { setError(e.message) }
@@ -492,6 +579,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
   )
 }
 
+// ─── Result Card ──────────────────────────────────────────────────────────────
 function ResultCard({ result: r }) {
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
@@ -524,6 +612,7 @@ function ResultCard({ result: r }) {
   )
 }
 
+// ─── Documents Tab ────────────────────────────────────────────────────────────
 function DocumentsTab({ history, onOpenCover, onOpenResume, lastWithCover }) {
   return (
     <div>
@@ -563,6 +652,7 @@ function DocumentsTab({ history, onOpenCover, onOpenResume, lastWithCover }) {
   )
 }
 
+// ─── VoicePrint Tab ───────────────────────────────────────────────────────────
 const VOICE_QUESTIONS = [
   { id: 'tone', label: 'How would you describe your communication style?', options: ['Warm and conversational','Direct and professional','Casual and friendly','Formal and precise'] },
   { id: 'humor', label: 'Do you use humor in your writing?', options: ['Yes, often','Sometimes','Rarely','Never'] },
@@ -611,7 +701,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 600, messages: [{ role: 'user', content: `Analyze this person's writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n${answersText}\n\nWRITING SAMPLES:\n${samples.substring(0,2000)}\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words to NEVER use, how they open and close. Be specific, quote their patterns.` }] }),
+        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: 600, messages: [{ role: 'user', content: `Analyze this person's writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n${answersText}\n\nWRITING SAMPLES:\n${samples.substring(0,2000)}\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words to NEVER use, how they open and close. Be specific.` }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||`API error ${res.status}`) }
       const data = await res.json()
@@ -633,7 +723,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
       </div>
       {voiceProfile?.analysis && <Card style={{ marginBottom: 16 }}><Label>Your voice profile</Label><p style={{ fontSize: 13, lineHeight: 1.75 }}>{voiceProfile.analysis}</p></Card>}
       <Card>
-        <Label>Your resume</Label>
+        <Label>Your resume (used for job scoring)</Label>
         {voiceProfile?.resume ? (
           <div>
             <pre style={{ whiteSpace: 'pre-wrap', fontSize: 12, lineHeight: 1.6, fontFamily: "'DM Sans', sans-serif", color: C.muted, background: C.surface2, padding: '12px 16px', borderRadius: 10, border: `1px solid ${C.border}`, maxHeight: 200, overflowY: 'auto' }}>{voiceProfile.resume}</pre>
@@ -647,7 +737,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   if (step==='resume') return (
     <div>
       <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 4 }}>Add your resume <span style={{ color: C.cyan }}>✦</span></h1>
-      <p style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>Upload PDF or paste text.</p>
+      <p style={{ fontSize: 14, color: C.muted, marginBottom: 24 }}>Upload PDF or paste text. Used for job scoring — not shown to anyone.</p>
       <div onClick={() => fileRef.current.click()} style={{ border: `2px dashed ${C.border}`, borderRadius: 14, padding: 32, textAlign: 'center', cursor: 'pointer', marginBottom: 16 }}
         onMouseOver={e=>e.currentTarget.style.borderColor=C.cyan} onMouseOut={e=>e.currentTarget.style.borderColor=C.border}>
         <div style={{ fontSize: 28, marginBottom: 8 }}>📄</div>
@@ -700,42 +790,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   )
 }
 
-function OnboardingScreen({ onComplete }) {
-  const [data, setData] = useState({ name: '', email: '', phone: '', linkedin: '', portfolio: '' })
-  const set = (k, v) => setData(d => ({ ...d, [k]: v }))
-  const ready = data.name.trim() && data.email.trim()
-
-  const field = {
-    width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px',
-    fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: C.surface,
-    color: C.text, outline: 'none', boxSizing: 'border-box',
-  }
-
-  return (
-    <div style={{ maxWidth: 480, margin: '0 auto' }}>
-      <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 4 }}>
-        Welcome to VoiceApply <span style={{ color: C.cyan }}>✦</span>
-      </h1>
-      <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>
-        Let's get your profile set up. This goes in your cover letter header and resume.
-      </p>
-      <Card>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-          {[['name','Your name','Stacy Robinson',true],['email','Email','stacyleerobinson@gmail.com',true],['phone','Phone','858-414-7994',false],['linkedin','LinkedIn URL','linkedin.com/in/yourname',false],['portfolio','Portfolio URL','yoursite.com',false]].map(([k,l,ph,req]) => (
-            <div key={k}>
-              <Label>{l}{req && ' *'}</Label>
-              <input value={data[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={field} />
-            </div>
-          ))}
-        </div>
-        <div style={{ marginTop: 24 }}>
-          <Btn primary onClick={() => onComplete(data)} disabled={!ready}>Get started →</Btn>
-          <p style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>* Required. Everything saved locally in your browser.</p>
-        </div>
-      </Card>
-    </div>
-  )
-}
+// ─── History Tab ──────────────────────────────────────────────────────────────
 function HistoryTab({ history, onView }) {
   const ss = s => ({ fontSize: 12, fontFamily: 'monospace', padding: '3px 10px', borderRadius: 20, background: s>=85?C.greenBg:s>=70?C.amberBg:C.redBg, color: s>=85?C.green:s>=70?C.amber:C.red })
   return (
@@ -764,7 +819,8 @@ function HistoryTab({ history, onView }) {
   )
 }
 
-function buildSystemPrompt(resumeSection, voiceSection) {
+// ─── System Prompt ────────────────────────────────────────────────────────────
+function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks) {
   return `You are a job match analyzer and cover letter writer.
 ${resumeSection}
 ${voiceSection}
@@ -778,9 +834,21 @@ OUTPUT — valid JSON only, no markdown:
 COVER LETTER (score>=85 and APPLY only, 3 paragraphs, 250-350 words):
 - Match voice profile exactly. Warm, human, direct. Short sentences.
 - NO em dashes. Ever.
-- HARD BANNED: perfectly, deeply, genuinely, passionate, thrilled, excited to, leverage, synergy, innovative, transformative, impactful, utilize, perfect, particularly, ideally, uniquely, exceptionally, seamlessly, incredibly, proven track record, demonstrated ability, strong foundation, well-suited, well-positioned, deeply committed, I am eager, I am excited, I would love to, I am writing to apply
+- HARD BANNED: perfectly, deeply, genuinely, passionate, thrilled, excited to, leverage, synergy, innovative, transformative, impactful, utilize, perfect, particularly, ideally, uniquely, exceptionally, seamlessly, incredibly, proven track record, demonstrated ability, strong foundation, well-suited, well-positioned, I am eager, I am excited, I would love to, I am writing to apply
 - Specific details. Bridge gaps honestly. Direct call to action at end.
-- Structure: name/contact header, date, Dear [Name], P1, P2, P3, Best regards / [Name]
+- Structure:
+${userName}
+${userContact}
+${userLinks}
+
+[DATE]
+
+Dear [Hiring Manager Name],
+
+[P1][P2][P3]
+
+Best regards,
+${userName}
 
 OUTREACH: under 280 chars, warm, direct, sounds human`
 }
