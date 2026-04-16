@@ -370,6 +370,7 @@ export default function App() {
   const [voiceProfile, setVoiceProfile] = useState(() => loadStorage('va_voice', null))
   const [currentResult, setCurrentResult] = useState(null)
   const [docView, setDocView] = useState(null)
+  const [profile, setProfile] = useState(() => loadStorage('va_profile', null))
 
   function saveKey() {
     if (!apiKey.startsWith('sk-ant-')) { alert("Anthropic keys start with sk-ant-"); return }
@@ -424,7 +425,8 @@ export default function App() {
             <button onClick={() => { localStorage.removeItem('va_key'); setKeySaved(false); setApiKey('') }} style={{ fontSize: 12, color: C.faint, background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif" }}>Change</button>
           </div>
         )}
-        {tab === 'Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} />}
+        {!profile && <OnboardingScreen onComplete={p => { setProfile(p); localStorage.setItem('va_profile', JSON.stringify(p)) }} />}
+        {profile && tab === 'Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
         {tab === 'Documents' && (
           docView === 'cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} />
           : docView === 'resume' ? <ResumeEditor onClose={() => setDocView(null)} />
@@ -698,6 +700,42 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   )
 }
 
+function OnboardingScreen({ onComplete }) {
+  const [data, setData] = useState({ name: '', email: '', phone: '', linkedin: '', portfolio: '' })
+  const set = (k, v) => setData(d => ({ ...d, [k]: v }))
+  const ready = data.name.trim() && data.email.trim()
+
+  const field = {
+    width: '100%', border: `1px solid ${C.border}`, borderRadius: 8, padding: '10px 14px',
+    fontSize: 14, fontFamily: "'DM Sans', sans-serif", background: C.surface,
+    color: C.text, outline: 'none', boxSizing: 'border-box',
+  }
+
+  return (
+    <div style={{ maxWidth: 480, margin: '0 auto' }}>
+      <h1 style={{ fontSize: 26, fontWeight: 600, letterSpacing: '-0.02em', marginBottom: 4 }}>
+        Welcome to VoiceApply <span style={{ color: C.cyan }}>✦</span>
+      </h1>
+      <p style={{ fontSize: 14, color: C.muted, marginBottom: 32, lineHeight: 1.6 }}>
+        Let's get your profile set up. This goes in your cover letter header and resume.
+      </p>
+      <Card>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {[['name','Your name','Stacy Robinson',true],['email','Email','stacyleerobinson@gmail.com',true],['phone','Phone','858-414-7994',false],['linkedin','LinkedIn URL','linkedin.com/in/yourname',false],['portfolio','Portfolio URL','yoursite.com',false]].map(([k,l,ph,req]) => (
+            <div key={k}>
+              <Label>{l}{req && ' *'}</Label>
+              <input value={data[k]} onChange={e => set(k, e.target.value)} placeholder={ph} style={field} />
+            </div>
+          ))}
+        </div>
+        <div style={{ marginTop: 24 }}>
+          <Btn primary onClick={() => onComplete(data)} disabled={!ready}>Get started →</Btn>
+          <p style={{ fontSize: 11, color: C.faint, marginTop: 10 }}>* Required. Everything saved locally in your browser.</p>
+        </div>
+      </Card>
+    </div>
+  )
+}
 function HistoryTab({ history, onView }) {
   const ss = s => ({ fontSize: 12, fontFamily: 'monospace', padding: '3px 10px', borderRadius: 20, background: s>=85?C.greenBg:s>=70?C.amberBg:C.redBg, color: s>=85?C.green:s>=70?C.amber:C.red })
   return (
