@@ -965,8 +965,7 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
                       <div style={{ marginTop: 6, padding: '12px 12px 10px', borderRadius: 12, background: C.greenBg, border: '1px solid rgba(45,106,79,0.22)' }}>
                         <div
                           style={{
-                            width: '100%', boxSizing: 'border-box', minHeight: 100, padding: '10px 12px', marginBottom: 10,
-                            borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface2, fontSize: 12, fontFamily: "'DM Sans', sans-serif",
+                            width: '100%', boxSizing: 'border-box', marginBottom: 10, fontSize: 12, fontFamily: "'DM Sans', sans-serif",
                             color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap',
                           }}
                         >
