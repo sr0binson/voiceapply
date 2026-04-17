@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { jsPDF } from 'jspdf'
 
 const NAV = ['Analyze', 'Documents', 'VoicePrint', 'History']
@@ -146,6 +146,13 @@ function generateResumePDF(data) {
   }
   if (data.education?.length) { sectionHeader('Education & Certifications'); data.education.forEach(e => addLine(e, {lineH:15})) }
   doc.save(`${(data.name||'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
+}
+
+function qualifiesForApplyLetterOutputs(r, matchThreshold) {
+  if (!r) return false
+  const th = Number.isFinite(Number(matchThreshold)) ? Math.max(0, Math.min(100, Number(matchThreshold))) : 85
+  const scoreN = Number(r.score)
+  return r.applyAnyway === true || (Number.isFinite(scoreN) && scoreN >= th)
 }
 
 function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, applyThreshold, override) {
@@ -483,7 +490,8 @@ export default function App() {
   }
   function onVoiceSaved(p) { setVoiceProfile(p); localStorage.setItem('va_voice',JSON.stringify(p)) }
   function onProfileSaved(p) { setProfile(p); localStorage.setItem('va_profile',JSON.stringify(p)) }
-  const lastWithCover = history.find(r=>r.coverLetter)
+  const applyLetterThreshold = Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85
+  const lastWithCover = history.find(r => r.coverLetter && qualifiesForApplyLetterOutputs(r, applyLetterThreshold))
 
   return (
     <div style={{ fontFamily:"'DM Sans', sans-serif", background:C.bg, minHeight:'100vh', color:C.text }}>
@@ -686,9 +694,9 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
 }
 
 function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
-  const th = Number.isFinite(Number(matchThreshold)) ? Math.max(0, Math.min(100, Number(matchThreshold))) : 85
-  const scoreN = Number(r.score)
-  const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && (r.applyAnyway === true || (Number.isFinite(scoreN) && scoreN >= th))
+  const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
+  const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
+  const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
 
@@ -698,71 +706,6 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
   const [chatLoading, setChatLoading] = useState(false)
   const [chatError, setChatError] = useState('')
   const chatBottomRef = useRef(null)
-
-  const projectPromptFallback = r.projectIdea
-    ? `Help me build this portfolio project for a ${r.jobTitle || 'target role'} role:\n\n${r.projectIdea}\n\nGive me:\n1) A practical plan with milestones\n2) Recommended tools (including AI/automation tools)\n3) A simple architecture + feature scope for v1\n4) A 1-week execution checklist\n5) Resume bullet points and interview talking points from this project`
-    : ''
-  const projectAIPromptText = (r.projectAIPrompt && r.projectAIPrompt.trim()) ? r.projectAIPrompt.trim() : projectPromptFallback
-  const [projectRunLoading, setProjectRunLoading] = useState(false)
-  const [projectRunError, setProjectRunError] = useState('')
-  const [projectRunResult, setProjectRunResult] = useState('')
-  const [showProjectOptions, setShowProjectOptions] = useState(false)
-  const [selectedProjectMode, setSelectedProjectMode] = useState('')
-
-  const projectBuildModes = [
-    { id: 'mvp', label: 'Fast MVP plan' },
-    { id: 'tools', label: 'AI + tool stack' },
-    { id: 'steps', label: 'Step-by-step build' },
-    { id: 'portfolio', label: 'Portfolio-ready delivery' },
-  ]
-
-  const modePromptMap = {
-    mvp: 'Give me a fast MVP plan I can execute quickly (scope, milestones, and must-have features only).',
-    tools: 'Recommend the best digital tools for this build, including AI and automation tools, and explain why each is useful.',
-    steps: 'Break this into clear build steps with practical implementation guidance for each step.',
-    portfolio: 'Show how to shape this into a strong portfolio piece with measurable outcomes and interview talking points.',
-  }
-
-  useEffect(() => {
-    setProjectRunResult('')
-    setProjectRunError('')
-    setShowProjectOptions(false)
-    setSelectedProjectMode('')
-    setProjectRunLoading(false)
-  }, [r.id])
-
-  async function runProjectPrompt(modeId) {
-    if (!apiKey || !projectAIPromptText) return
-    const modeInstruction = modePromptMap[modeId] || modePromptMap.mvp
-    const runPrompt =
-      `Project suggestion:\n${r.projectIdea || ''}\n\n` +
-      `${modeInstruction}\n\n` +
-      `Context prompt:\n${projectAIPromptText}`
-
-    setProjectRunLoading(true)
-    setProjectRunError('')
-    setSelectedProjectMode(modeId)
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey, 'anthropic-version': '2023-06-01', 'anthropic-dangerous-direct-browser-access': 'true' },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 1200,
-          system: 'You are a practical project coach. Give concise, actionable steps, concrete tool recommendations, and implementation details suitable for shipping quickly.',
-          messages: [{ role: 'user', content: runPrompt }],
-        }),
-      })
-      if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error?.message || 'API error ' + res.status) }
-      const data = await res.json()
-      setProjectRunResult(data.content.map(b => b.text || '').join('').trim())
-      setShowProjectOptions(false)
-    } catch (e) {
-      setProjectRunError(e.message || 'Could not run AI prompt.')
-    } finally {
-      setProjectRunLoading(false)
-    }
-  }
 
   function closePanel() {
     setPanelOpen(false)
@@ -957,53 +900,30 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
         )}
         {r.projectIdea && (
           <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.greenBg, border:'1px solid rgba(45,106,79,0.22)' }}>
-            <div style={{ fontSize:11, fontWeight:600, color:C.green, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Project suggestion</div>
-            <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.projectIdea}</div>
-            {projectAIPromptText && (
-              <div style={{ marginTop:10, padding:'10px 12px', borderRadius:10, background:C.surface, border:`1px solid ${C.border}` }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
-                  <div />
-                  <button
-                    type="button"
-                    onClick={() => setShowProjectOptions(v => !v)}
-                    disabled={projectRunLoading || !apiKey}
-                    style={{ fontSize:12, lineHeight:1, padding:0, border:'none', background:'transparent', color:C.text, cursor:(projectRunLoading || !apiKey)?'not-allowed':'pointer', fontFamily:"'DM Sans', sans-serif", opacity:(projectRunLoading || !apiKey)?0.6:1, display:'inline-flex', alignItems:'center', gap:4, fontWeight:600 }}
-                    title="Choose AI build mode"
-                  >
-                    AI <span style={{ color:C.cyan, fontSize:13 }}>{projectRunLoading ? '…' : '▸'}</span>
-                  </button>
-                </div>
-                {showProjectOptions && !projectRunLoading && (
-                  <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:8 }}>
-                    {projectBuildModes.map(mode => (
-                      <button
-                        key={mode.id}
-                        type="button"
-                        onClick={() => runProjectPrompt(mode.id)}
-                        style={{ fontSize:11, padding:'5px 9px', borderRadius:20, border:`1px solid ${C.border}`, background:C.surface2, color:C.muted, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" }}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {projectRunError && <div style={{ marginTop:8, fontSize:12, color:C.red }}>{projectRunError}</div>}
-                {projectRunLoading && <div style={{ marginTop:8, fontSize:12, color:C.muted }}>Running AI for {projectBuildModes.find(m => m.id === selectedProjectMode)?.label || 'project plan'}...</div>}
-                {projectRunResult && <div style={{ marginTop:8, fontSize:12, color:C.text, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{projectRunResult}</div>}
+            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14 }}>
+              <div style={{ flex:1, minWidth:0 }}>
+                <div style={{ fontSize:11, fontWeight:600, color:C.green, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Project Idea</div>
+                <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.projectIdea}</div>
               </div>
-            )}
-            <button
-              type="button"
-              onClick={openPanel}
-              disabled={!apiKey}
-              style={{ marginTop:10, fontSize:12, padding:'5px 14px', borderRadius:20, border:`1px solid ${C.cyanBorder}`, background:C.cyanDim, color:C.cyan, cursor:!apiKey?'not-allowed':'pointer', fontFamily:"'DM Sans', sans-serif", fontWeight:600, opacity:!apiKey?0.5:1, display:'inline-flex', alignItems:'center', gap:4 }}
-            >
-              Build this <span style={{ fontSize:13 }}>▸</span>
-            </button>
+              <button
+                type="button"
+                onClick={openPanel}
+                disabled={!apiKey}
+                title={apiKey ? 'Open project builder' : 'Save your API key first'}
+                style={{
+                  flexShrink:0, alignSelf:'flex-start', margin:0, padding:'2px 6px 6px', border:'none', background:'transparent',
+                  cursor:!apiKey?'not-allowed':'pointer', opacity:!apiKey?0.45:1, fontFamily:"'DM Sans', sans-serif",
+                  display:'flex', flexDirection:'column', alignItems:'center', gap:1, color:C.text,
+                }}
+              >
+                <span style={{ fontSize:13, fontWeight:600, letterSpacing:'0.06em' }}>AI</span>
+                <span style={{ fontSize:9, color:C.cyan, lineHeight:1 }} aria-hidden="true">▼</span>
+              </button>
+            </div>
           </div>
         )}
         <div style={{ marginTop:8 }}>
-          {r.coverLetter && <Accordion title="Cover letter"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.coverLetter}</pre><CopyBtn text={r.coverLetter} /></Accordion>}
+          {showCoverLetter && <Accordion title="Cover letter"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.coverLetter}</pre><CopyBtn text={r.coverLetter} /></Accordion>}
           {showOutreach && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
         </div>
       </Card>
