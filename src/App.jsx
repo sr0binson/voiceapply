@@ -744,14 +744,6 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
     <div>
       <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>VoicePrint <span style={{ color:C.cyan }}>✦</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:32 }}>Teach the app how you write so cover letters sound like you.</p>
-      <div style={{ marginBottom:28, padding:'14px 18px', borderRadius:12, background:C.surface2, border:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-        <div>
-          <span style={{ fontSize:13, fontWeight:500 }}>Connect Buffer</span>
-          <span style={{ fontSize:11, color:C.cyan, marginLeft:8 }}>✦ coming soon</span>
-          <div style={{ fontSize:12, color:C.muted, marginTop:2 }}>Pull your posts automatically for a more accurate profile.</div>
-        </div>
-        <Btn small disabled style={{ color:C.faint }}>Connect →</Btn>
-      </div>
       <div style={{ marginBottom:24 }}>
         <Label>Writing samples</Label>
         <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.6 }}>Paste 3–5 things you've written — emails, LinkedIn posts, messages. The more natural the better.</p>
