@@ -905,13 +905,20 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
               type="button"
               onClick={() => setUpskillOpen(v => !v)}
               style={{
-                width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6,
                 padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
                 fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
               }}
             >
               <span>Upskill</span>
-              <span style={{ fontSize: 10, color: C.cyan, transform: upskillOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} aria-hidden="true">▼</span>
+              <span
+                style={{
+                  fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1,
+                  transform: upskillOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
+                  transformOrigin: 'center',
+                }}
+                aria-hidden="true"
+              >▶</span>
             </button>
             {upskillOpen && (
               <div style={{ paddingBottom: 16 }}>
@@ -927,14 +934,21 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
                       type="button"
                       onClick={() => setUpskillProjectOpen(v => !v)}
                       style={{
-                        width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                        width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6,
                         padding: '10px 0', background: 'none', border: 'none',
                         borderTop: r.transferableNotes ? `1px solid ${C.border}` : 'none',
                         cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
                       }}
                     >
                       <span style={{ fontSize: 14, fontWeight: 600 }}>Project Idea</span>
-                      <span style={{ fontSize: 10, color: C.cyan, transform: upskillProjectOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} aria-hidden="true">▼</span>
+                      <span
+                        style={{
+                          fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1,
+                          transform: upskillProjectOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
+                          transformOrigin: 'center',
+                        }}
+                        aria-hidden="true"
+                      >▶</span>
                     </button>
                     {upskillProjectOpen && (
                       <div style={{ marginTop: 6, padding: '12px 12px 10px', borderRadius: 12, background: C.greenBg, border: '1px solid rgba(45,106,79,0.22)' }}>
@@ -960,7 +974,7 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
                             }}
                           >
                             <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.06em' }}>AI</span>
-                            <span style={{ fontSize: 11, color: C.cyan, lineHeight: 1 }} aria-hidden="true">▼</span>
+                            <span style={{ fontSize: 9, color: C.cyan, lineHeight: 1 }} aria-hidden="true">▶</span>
                           </button>
                         </div>
                       </div>
@@ -990,13 +1004,13 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
                 disabled={!apiKey}
                 title={apiKey ? 'Open project builder' : 'Save your API key first'}
                 style={{
-                  flexShrink:0, alignSelf:'flex-start', margin:0, padding:'2px 6px 6px', border:'none', background:'transparent',
+                  flexShrink:0, alignSelf:'flex-start', margin:0, padding:'4px 8px', border:'none', background:'transparent',
                   cursor:!apiKey?'not-allowed':'pointer', opacity:!apiKey?0.45:1, fontFamily:"'DM Sans', sans-serif",
-                  display:'flex', flexDirection:'column', alignItems:'center', gap:1, color:C.text,
+                  display:'inline-flex', flexDirection:'row', alignItems:'center', gap:5, color:C.text,
                 }}
               >
                 <span style={{ fontSize:13, fontWeight:600, letterSpacing:'0.06em' }}>AI</span>
-                <span style={{ fontSize:9, color:C.cyan, lineHeight:1 }} aria-hidden="true">▼</span>
+                <span style={{ fontSize:9, color:C.cyan, lineHeight:1 }} aria-hidden="true">▶</span>
               </button>
             </div>
           </div>
