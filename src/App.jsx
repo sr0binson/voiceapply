@@ -167,6 +167,317 @@ function qualifiesForApplyLetterOutputs(r, matchThreshold) {
   return r.applyAnyway === true || (Number.isFinite(scoreN) && scoreN >= th)
 }
 
+const KIT_TAILORED_RESUME_PREFIX = 'va_kit_tailored_resume_'
+
+function CyanPlayTriangle({ size = 10 }) {
+  const h = size
+  const w = Math.max(5, Math.round(size * 0.62))
+  return (
+    <span
+      style={{
+        display: 'inline-block', width: 0, height: 0, flexShrink: 0,
+        borderTop: `${h / 2}px solid transparent`,
+        borderBottom: `${h / 2}px solid transparent`,
+        borderLeft: `${w}px solid ${C.cyan}`,
+        verticalAlign: 'middle',
+      }}
+      aria-hidden
+    />
+  )
+}
+
+function resumeLineLooksSection(trimmed) {
+  return (
+    trimmed.length >= 3 &&
+    trimmed.length <= 52 &&
+    trimmed === trimmed.toUpperCase() &&
+    /^[A-Z0-9\s&/().,'+\-]+$/.test(trimmed) &&
+    trimmed.split(/\s+/).length <= 6
+  )
+}
+
+/** ~0.5in outer padding; section headers + bullet lists; merged body lines to avoid odd gaps */
+function TailoredResumeView({ text }) {
+  const body = String(text || '').trim()
+  if (!body) {
+    return (
+      <p style={{ fontSize: 12, color: C.muted, margin: 0, lineHeight: 1.55 }}>
+        Your tailored resume will appear here after generation.
+      </p>
+    )
+  }
+  const lines = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
+  const nodes = []
+  let bulletBuf = []
+  const flushBullets = () => {
+    if (!bulletBuf.length) return
+    nodes.push(
+      <ul
+        key={`b-${nodes.length}`}
+        style={{
+          margin: '0 0 14px 0',
+          padding: '0 0 0 1.1em',
+          listStyleType: 'disc',
+          listStylePosition: 'outside',
+          fontSize: 11.5,
+          lineHeight: 1.48,
+          color: C.text,
+        }}
+      >
+        {bulletBuf.map((item, i) => (
+          <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>{item}</li>
+        ))}
+      </ul>,
+    )
+    bulletBuf = []
+  }
+  let i = 0
+  while (i < lines.length) {
+    const trimmed = lines[i].trim()
+    if (!trimmed) {
+      flushBullets()
+      i++
+      continue
+    }
+    const isBullet = /^[-*•▪]\s/.test(trimmed) || /^\d+[.)]\s/.test(trimmed)
+    if (isBullet) {
+      const bulletText = trimmed.replace(/^[-*•▪]\s*/, '').replace(/^\d+[.)]\s+/, '')
+      bulletBuf.push(bulletText)
+      i++
+      continue
+    }
+    flushBullets()
+    if (resumeLineLooksSection(trimmed)) {
+      nodes.push(
+        <div
+          key={`s-${nodes.length}`}
+          style={{
+            fontSize: 10,
+            fontWeight: 700,
+            letterSpacing: '0.11em',
+            textTransform: 'uppercase',
+            color: C.text,
+            marginTop: nodes.length ? 18 : 0,
+            marginBottom: 8,
+            paddingBottom: 5,
+            borderBottom: `1px solid ${C.borderStrong}`,
+          }}
+        >
+          {trimmed}
+        </div>,
+      )
+      i++
+      continue
+    }
+    const paraLines = [trimmed]
+    i++
+    while (i < lines.length) {
+      const t = lines[i].trim()
+      if (!t) break
+      if (/^[-*•▪]\s/.test(t) || /^\d+[.)]\s/.test(t)) break
+      if (resumeLineLooksSection(t)) break
+      paraLines.push(t)
+      i++
+    }
+    nodes.push(
+      <p
+        key={`p-${nodes.length}`}
+        style={{
+          margin: '0 0 11px',
+          fontSize: 11.5,
+          lineHeight: 1.48,
+          color: C.text,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {paraLines.join('\n')}
+      </p>,
+    )
+  }
+  flushBullets()
+  return (
+    <article
+      style={{
+        padding: '48px 48px 40px',
+        background: '#fdfdfc',
+        border: `1px solid ${C.border}`,
+        borderRadius: 10,
+        boxSizing: 'border-box',
+        maxWidth: '100%',
+        overflowX: 'auto',
+        fontFamily: "'DM Sans', sans-serif",
+      }}
+    >
+      {nodes}
+    </article>
+  )
+}
+
+function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach }) {
+  const storageKey = KIT_TAILORED_RESUME_PREFIX + String(r?.id ?? `${r?.jobTitle || ''}_${r?.company || ''}`.replace(/\s/g, '_'))
+  const [open, setOpen] = useState(true)
+  const [tailored, setTailored] = useState('')
+  const [loading, setLoading] = useState(false)
+  const [err, setErr] = useState('')
+
+  useEffect(() => {
+    try {
+      setTailored(sessionStorage.getItem(storageKey) || '')
+    } catch {
+      setTailored('')
+    }
+  }, [storageKey])
+
+  const jdText = String(r?.analyzedJobPosting || '').trim()
+  const jdUrl = String(r?.jobPostingUrl || '').trim()
+  const jdBlock = jdText || (jdUrl ? `Job listing URL:\n${jdUrl}` : '')
+  const jobLine = `${r?.jobTitle || 'Role'} · ${r?.company || 'Company'}`
+  const sourceResume = String(voiceProfile?.resume || '').trim()
+  const canGenerate = !!sourceResume && (!!jdBlock || !!(r?.jobTitle || r?.company))
+
+  function persistTailored(s) {
+    setTailored(s)
+    try {
+      sessionStorage.setItem(storageKey, s)
+    } catch { /* ignore */ }
+  }
+
+  async function generateTailoredResume() {
+    if (!keySaved || !apiKey) {
+      alert('Save your API key first.')
+      return
+    }
+    if (!sourceResume) {
+      alert('Add your resume in VoicePrint first.')
+      return
+    }
+    if (!jdBlock && !r?.jobTitle) {
+      alert('Re-run analysis with the job description pasted in (or a job URL) so we can tailor your resume.')
+      return
+    }
+    setLoading(true)
+    setErr('')
+    try {
+      const voiceSec = voiceProfile?.analysis
+        ? '\n\nVOICE / STYLE (match tone; no emojis):\n' + String(voiceProfile.analysis).slice(0, 1400)
+        : ''
+      const userContent =
+        'Target role: ' + jobLine + '\n\n' +
+        (jdBlock ? 'JOB POSTING / CONTEXT:\n' + jdBlock.slice(0, 8000) + '\n\n' : '') +
+        'SOURCE RESUME — facts only; do not invent employers, dates, degrees, or skills:\n' +
+        sourceResume.slice(0, 12000) +
+        voiceSec +
+        '\n\nRewrite for this job. FORMAT (plain text only, no markdown):\n' +
+        '- Start with name and contact lines from the source if present.\n' +
+        '- Section titles alone on one line in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
+        '- One blank line between sections.\n' +
+        '- Every bullet line must start with "- " (hyphen + space). Keep bullets one clause when possible.\n' +
+        '- No tables, tabs, emoji, or decorative characters.\n' +
+        'Return ONLY the resume.'
+
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model: 'claude-sonnet-4-20250514',
+          max_tokens: 3500,
+          system:
+            'You tailor resumes for specific jobs using only the source resume. Never fabricate. If job context is thin, lean on role title and honest emphasis only.',
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      })
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}))
+        throw new Error(e.error?.message || 'API error ' + res.status)
+      }
+      const data = await res.json()
+      const text = data.content.map(b => b.text || '').join('').trim()
+      persistTailored(text)
+    } catch (e) {
+      setErr(e.message || 'Something went wrong.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
+
+  return (
+    <div style={{ marginTop: 4, borderTop: `1px solid ${C.border}`, paddingTop: 4 }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 8,
+          padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
+          fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
+        }}
+      >
+        <CyanPlayTriangle size={11} />
+        <span>myResume+</span>
+        <span
+          style={{
+            fontSize: 9, color: C.cyan, marginLeft: 2, lineHeight: 1,
+            transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
+            transformOrigin: 'center',
+          }}
+          aria-hidden
+        >
+          ▶
+        </span>
+      </button>
+      {open && (
+        <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, color: C.gapPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
+              Tailored resume
+            </div>
+            {loading && (
+              <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
+                <Dots /> Drafting your resume for this role…
+              </div>
+            )}
+            {!loading && (
+              <>
+                {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
+                <TailoredResumeView text={tailored} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, alignItems: 'center' }}>
+                  <Btn small primary disabled={loading || !canGenerate} onClick={generateTailoredResume}>
+                    {tailored.trim() ? 'Regenerate' : 'Generate'}
+                  </Btn>
+                  {tailored.trim() ? <CopyBtn text={tailored} /> : null}
+                </div>
+                {!sourceResume && (
+                  <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
+                )}
+              </>
+            )}
+          </div>
+          {showCoverLetter && (
+            <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.letterPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
+              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
+              <CopyBtn text={r.coverLetter} />
+            </div>
+          )}
+          {showOutreach && (
+            <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
+              <div style={{ fontSize: 11, fontWeight: 600, color: C.connectPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
+              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
+              <CopyBtn text={r.outreachMessage} />
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, applyThreshold, override) {
   const voiceInstruction = (voiceSection && voiceSection.trim().length > 0)
     ? 'Match the candidate voice profile exactly — their tone, rhythm, word choices, and anything they flag as unnatural. The voice profile is the only style guide. Do not impose your own style.'
@@ -498,7 +809,7 @@ export default function App() {
   function onResult(result) {
     const entry = {...result, timestamp:new Date().toLocaleString(), id:Date.now()}
     const updated = [entry,...history].slice(0,50)
-    setHistory(updated); localStorage.setItem('va_history',JSON.stringify(updated)); setCurrentResult(result)
+    setHistory(updated); localStorage.setItem('va_history',JSON.stringify(updated)); setCurrentResult(entry)
   }
   function onVoiceSaved(p) { setVoiceProfile(p); localStorage.setItem('va_voice',JSON.stringify(p)) }
   function onProfileSaved(p) { setProfile(p); localStorage.setItem('va_profile',JSON.stringify(p)) }
@@ -613,7 +924,12 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
       const parsed = JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim())
-      onResult({ ...parsed, applyAnyway: !!override })
+      onResult({
+        ...parsed,
+        applyAnyway: !!override,
+        analyzedJobPosting: inputMode === 'description' ? jd.trim() : '',
+        jobPostingUrl: inputMode === 'url' ? jobUrl.trim() : '',
+      })
     } catch(e) { setError(e.message) }
     finally { clearInterval(interval); setLoading(false) }
   }
@@ -710,6 +1026,8 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           result={currentResult}
           onOverride={() => analyze(true)}
           apiKey={apiKey}
+          keySaved={keySaved}
+          voiceProfile={voiceProfile}
           matchThreshold={Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85}
         />
       )}
@@ -717,10 +1035,11 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
   )
 }
 
-function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
+function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold }) {
   const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
   const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
   const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
+  const hasUpskillShell = !!(r.missingSkills?.length > 0 && allowApplyOutputs && (r.transferableNotes || r.projectIdea))
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
 
@@ -731,11 +1050,9 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
   const [chatError, setChatError] = useState('')
   const chatBottomRef = useRef(null)
   const [upskillOpen, setUpskillOpen] = useState(false)
-  const [outreachOpen, setOutreachOpen] = useState(false)
 
   useEffect(() => {
     setUpskillOpen(false)
-    setOutreachOpen(false)
   }, [r.id])
 
   function closePanel() {
@@ -974,6 +1291,17 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
                     </div>
                   </div>
                 )}
+                {allowApplyOutputs && (showCoverLetter || showOutreach) && (
+                  <MyResumePlusSection
+                    r={r}
+                    voiceProfile={voiceProfile}
+                    apiKey={apiKey}
+                    keySaved={keySaved}
+                    allowApplyOutputs={allowApplyOutputs}
+                    showCoverLetter={showCoverLetter}
+                    showOutreach={showOutreach}
+                  />
+                )}
               </div>
             )}
           </div>
@@ -1006,45 +1334,17 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
             </div>
           </div>
         )}
-        {(showCoverLetter || showOutreach) && (
+        {!hasUpskillShell && allowApplyOutputs && (showCoverLetter || showOutreach) && (
           <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}` }}>
-            <button
-              type="button"
-              onClick={() => setOutreachOpen(v => !v)}
-              style={{
-                width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6,
-                padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
-                fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
-              }}
-            >
-              <span>Outreach</span>
-              <span
-                style={{
-                  fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1,
-                  transform: outreachOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
-                  transformOrigin: 'center',
-                }}
-                aria-hidden="true"
-              >▶</span>
-            </button>
-            {outreachOpen && (
-              <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
-                {showCoverLetter && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.letterPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
-                    <CopyBtn text={r.coverLetter} />
-                  </div>
-                )}
-                {showOutreach && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.connectPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
-                    <CopyBtn text={r.outreachMessage} />
-                  </div>
-                )}
-              </div>
-            )}
+            <MyResumePlusSection
+              r={r}
+              voiceProfile={voiceProfile}
+              apiKey={apiKey}
+              keySaved={keySaved}
+              allowApplyOutputs={allowApplyOutputs}
+              showCoverLetter={showCoverLetter}
+              showOutreach={showOutreach}
+            />
           </div>
         )}
       </Card>
