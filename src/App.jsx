@@ -168,6 +168,8 @@ function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, u
     'COVER LETTER (score>=85 and APPLY only, 3 paragraphs, 250-350 words):\n' +
     '- ' + voiceInstruction + '\n' +
     '- Never use hollow filler phrases that no real person says out loud\n' +
+'- ALWAYS stay strictly within the candidate\'s actual experience — never invent degrees, certifications, or background not mentioned in their resume or voice profile\n' +
+'- Universal banned words regardless of voice profile: perfectly, perfect, leverages, synergy, transformative, utilize, seamlessly, innovative, impactful, robust, resonates\n' +
     '- Bridge skill gaps honestly using transferable experience\n' +
     '- End with a direct call to action\n' +
     '- Structure:\n' +
