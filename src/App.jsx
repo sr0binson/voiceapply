@@ -650,11 +650,22 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           />
         </>
       )}
+      {inputMode === 'description' && jd.trim() && !loading && (
+        <div style={{ marginTop: 8 }}>
+          <button
+            type="button"
+            onClick={() => { setJd(''); setCurrentResult(null); setError('') }}
+            style={{
+              padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
+              fontSize: 11, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2,
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      )}
       <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16, justifyContent:'flex-end' }}>
   {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
-  {(jd || jobUrl) && !loading && (
-    <Btn small onClick={() => { setJd(''); setJobUrl(''); setCurrentResult(null); setError('') }}>Clear</Btn>
-  )}
   <button
     onClick={() => analyze(false)}
     disabled={loading}
