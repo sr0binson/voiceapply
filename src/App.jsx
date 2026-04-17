@@ -16,6 +16,18 @@ const C = {
   green: '#2d6a4f', greenBg: 'rgba(45,106,79,0.08)',
   red: '#9b2335', redBg: 'rgba(155,35,53,0.07)',
   amber: '#7a4f00', amberBg: 'rgba(122,79,0,0.07)',
+  gapPanelBg: 'rgba(78,205,196,0.11)',
+  gapPanelBorder: 'rgba(78,205,196,0.26)',
+  gapPanelTitle: '#35827b',
+  projectPanelBg: 'rgba(45,106,79,0.09)',
+  projectPanelBorder: 'rgba(45,106,79,0.2)',
+  projectPanelTitle: '#2d6a4f',
+  letterPanelBg: '#f8f7f3',
+  letterPanelBorder: 'rgba(0,0,0,0.09)',
+  letterPanelTitle: '#4a4a44',
+  connectPanelBg: 'rgba(122,79,0,0.075)',
+  connectPanelBorder: 'rgba(122,79,0,0.2)',
+  connectPanelTitle: '#5c4a1f',
 }
 
 function Label({ children }) {
@@ -935,14 +947,14 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
             {upskillOpen && (
               <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {r.transferableNotes && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Skill Gap Strategy</div>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.gapPanelBg, border: `1px solid ${C.gapPanelBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.gapPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Skill Gap Strategy</div>
                     <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65 }}>{r.transferableNotes}</div>
                   </div>
                 )}
                 {r.projectIdea && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Project Idea</div>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.projectPanelBg, border: `1px solid ${C.projectPanelBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.projectPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Project Idea</div>
                     <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', marginBottom: 10 }}>{r.projectIdea}</div>
                     <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
                       <button
@@ -967,14 +979,14 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
           </div>
         )}
         {!r.missingSkills?.length && r.transferableNotes && (
-          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.cyanDim, border:`1px solid ${C.cyanBorder}` }}>
-            <div style={{ fontSize:11, fontWeight:600, color:C.cyan, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Skill Gap Strategy</div>
+          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.gapPanelBg, border:`1px solid ${C.gapPanelBorder}` }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.gapPanelTitle, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Skill Gap Strategy</div>
             <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.transferableNotes}</div>
           </div>
         )}
         {!r.missingSkills?.length && r.projectIdea && (
-          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.cyanDim, border:`1px solid ${C.cyanBorder}` }}>
-            <div style={{ fontSize:11, fontWeight:600, color:C.cyan, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Project Idea</div>
+          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.projectPanelBg, border:`1px solid ${C.projectPanelBorder}` }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.projectPanelTitle, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Project Idea</div>
             <div style={{ fontSize:12, color:C.text, lineHeight:1.55, whiteSpace:'pre-wrap', marginBottom:10 }}>{r.projectIdea}</div>
             <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center' }}>
               <button
@@ -1018,15 +1030,15 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
             {outreachOpen && (
               <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {showCoverLetter && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.letterPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
                     <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
                     <CopyBtn text={r.coverLetter} />
                   </div>
                 )}
                 {showOutreach && (
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
-                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.connectPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
                     <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
                     <CopyBtn text={r.outreachMessage} />
                   </div>
