@@ -153,23 +153,26 @@ function generateResumePDF(data) {
   doc.save(`${(data.name||'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
 }
 
-function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks) {
+function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, override) {
   const voiceInstruction = (voiceSection && voiceSection.trim().length > 0)
     ? 'Match the candidate voice profile exactly — their tone, rhythm, word choices, and anything they flag as unnatural. The voice profile is the only style guide. Do not impose your own style.'
     : 'No voice profile provided. Write professionally and neutrally. Clear, direct, human-sounding.'
 
+  const scoringRules = override
+    ? 'OVERRIDE MODE: User has chosen to apply regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what. Still provide an honest score and verdict but always include all outputs.'
+    : 'SCORING: 0-100. 85+=APPLY+full output. 70-84=SKIP+no cover letter. <70=SKIP.\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.'
+
   return 'You are a job match analyzer and cover letter writer.\n' +
     resumeSection + '\n' +
     voiceSection + '\n\n' +
-    'SCORING: 0-100. 85+=APPLY+full output. 70-84=SKIP+no cover letter. <70=SKIP.\n' +
-    'SCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.\n\n' +
+    scoringRules + '\n\n' +
     'OUTPUT — valid JSON only, no markdown:\n' +
     '{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","outreachMessage":""}\n\n' +
-    'COVER LETTER (score>=85 and APPLY only, 3 paragraphs, 250-350 words):\n' +
+    'COVER LETTER (3 paragraphs, 250-350 words):\n' +
     '- ' + voiceInstruction + '\n' +
     '- Never use hollow filler phrases that no real person says out loud\n' +
-'- ALWAYS stay strictly within the candidate\'s actual experience — never invent degrees, certifications, or background not mentioned in their resume or voice profile\n' +
-'- Universal banned words regardless of voice profile: perfectly, perfect, leverages, synergy, transformative, utilize, seamlessly, innovative, impactful, robust, resonates\n' +
+    '- ALWAYS stay strictly within the candidate\'s actual experience — never invent degrees, certifications, or background not in their resume\n' +
+    '- Universal banned words: perfectly, perfect, leverage, synergy, transformative, utilize, seamlessly, innovative, impactful, robust, resonates\n' +
     '- Bridge skill gaps honestly using transferable experience\n' +
     '- End with a direct call to action\n' +
     '- Structure:\n' +
@@ -450,7 +453,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
   async function analyze(override = false) {
     if (!keySaved) { alert('Save your API key first.'); return }
     if (!jd.trim()) { alert('Paste a job description first.'); return }
-    setLoading(true); setError(''); setCurrentResult(null); setLastJd(jd)
+    setLoading(true); setError(''); setCurrentResult(null)
     let mi=0; setLoadMsg(msgs[0])
     const interval = setInterval(() => { mi=(mi+1)%msgs.length; setLoadMsg(msgs[mi]) }, 2500)
     try {
@@ -462,7 +465,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks), messages:[{ role:'user', content:(override ? 'OVERRIDE: The user wants to apply to this job regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what the score is.\n\n' : '') + 'Analyze this job posting:\n\n' + (override ? lastJd : jd) }] }),
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,override), messages:[{ role:'user', content:'Analyze this job posting:\n\n'+jd }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
@@ -487,16 +490,16 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       <Label>Job description</Label>
       <TextArea value={jd} onChange={e=>setJd(e.target.value)} rows={10} placeholder="Paste the full job description here..." />
       <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16 }}>
-        <Btn primary onClick={analyze} disabled={loading}>{loading?'Analyzing...':'Analyze job →'}</Btn>
+        <Btn primary onClick={() => analyze(false)} disabled={loading}>{loading?'Analyzing...':'Analyze job →'}</Btn>
         {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13 }}><Dots />{loadMsg}</div>}
       </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
-      {currentResult && <ResultCard result={currentResult} lastJd={lastJd} onOverride={() => analyze(true)} />}
+      {currentResult && <ResultCard result={currentResult} onOverride={() => analyze(true)} />}
     </div>
   )
 }
 
-function ResultCard({ result:r, lastJd, onOverride }) {
+function ResultCard({ result:r, onOverride }) {
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
   return (
@@ -509,20 +512,17 @@ function ResultCard({ result:r, lastJd, onOverride }) {
             <div style={{ fontSize:13, color:C.muted, marginTop:2 }}>{r.company||'Unknown company'}</div>
           </div>
         </div>
-        <div style={{ display:'inline-flex', alignItems:'center', gap:7, fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, marginBottom:12, background:vc.bg, color:vc.color, border:`1px solid ${vc.border}` }}>
-          <span style={{ width:6, height:6, borderRadius:'50%', background:'currentColor', display:'inline-block' }} />{vc.label}
+        <div style={{ display:'flex', alignItems:'center', gap:10, marginBottom:12, flexWrap:'wrap' }}>
+          <div style={{ display:'inline-flex', alignItems:'center', gap:7, fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, background:vc.bg, color:vc.color, border:`1px solid ${vc.border}` }}>
+            <span style={{ width:6, height:6, borderRadius:'50%', background:'currentColor', display:'inline-block' }} />{vc.label}
+          </div>
+          {r.verdict !== 'APPLY' && onOverride && (
+            <button onClick={onOverride} style={{ fontSize:12, padding:'5px 14px', borderRadius:20, background:C.surface2, border:`1px solid ${C.border}`, cursor:'pointer', color:C.muted, fontFamily:"'DM Sans', sans-serif" }}>
+              Apply anyway →
+            </button>
+          )}
         </div>
         <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:16 }}>{r.verdictReason}</p>
-{r.verdict !== 'APPLY' && onOverride && (
-  <div style={{ marginBottom:16 }}>
-    <Btn small onClick={onOverride} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Apply anyway →</Btn>
-  </div>
-)}
-{(r.verdict === 'SKIP' && !r.coverLetter) && (
-  <div style={{ marginBottom:16 }}>
-    <Btn small onClick={() => alert('Coming soon — override will regenerate with a cover letter.')}>Apply anyway →</Btn>
-  </div>
-)}
         {r.companySnapshot && <div style={{ marginBottom:16, padding:'12px 16px', borderRadius:10, background:C.cyanDim, borderLeft:`2px solid ${C.cyan}`, fontSize:13, lineHeight:1.65 }}>{r.companySnapshot}</div>}
         {r.scamFlags?.length>0 && <div style={{ marginBottom:14 }}><Label>Scam signals</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.scamFlags.map(f=><Pill key={f} color={C.amber} bg={C.amberBg}>{f}</Pill>)}</div></div>}
         {r.matchedSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Skills matched</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.matchedSkills.map(s=><Pill key={s} color={C.green} bg={C.greenBg}>{s}</Pill>)}</div></div>}
@@ -589,7 +589,6 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   const [answers, setAnswers] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
-  const [lastJd, setLastJd] = useState('')
   const [resume, setResume] = useState(voiceProfile?.resume||'')
   const [resumeLoading, setResumeLoading] = useState(false)
   const fileRef = useRef()
@@ -621,7 +620,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
       const answersText = VOICE_QUESTIONS.map(q=>q.label+'\nAnswer: '+answers[q.id]).join('\n\n')
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST', headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:'Analyze this person\'s writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n'+answersText+'\n\nWRITING SAMPLES:\n'+samples.substring(0,2000)+'\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words they NEVER use, how they open and close. Be specific. Include a list of words/phrases to avoid based on their actual writing.'}]}),
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:'Analyze this person\'s writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n'+answersText+'\n\nWRITING SAMPLES:\n'+samples.substring(0,2000)+'\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words they NEVER use (be specific — pull actual phrases from their writing to avoid), how they open and close. This banned list should reflect their actual voice, not generic AI advice.'}]}),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data=await res.json()
