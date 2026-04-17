@@ -447,10 +447,10 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
   const [error, setError] = useState('')
   const msgs = ['Reading the job posting...','Checking for scam signals...','Scoring your skills match...','Writing your cover letter...','Almost done...']
 
-  async function analyze() {
+  async function analyze(override = false) {
     if (!keySaved) { alert('Save your API key first.'); return }
     if (!jd.trim()) { alert('Paste a job description first.'); return }
-    setLoading(true); setError(''); setCurrentResult(null)
+    setLoading(true); setError(''); setCurrentResult(null); setLastJd(jd)
     let mi=0; setLoadMsg(msgs[0])
     const interval = setInterval(() => { mi=(mi+1)%msgs.length; setLoadMsg(msgs[mi]) }, 2500)
     try {
@@ -462,7 +462,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks), messages:[{ role:'user', content:'Analyze this job posting:\n\n'+jd }] }),
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks), messages:[{ role:'user', content:(override ? 'OVERRIDE: The user wants to apply to this job regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what the score is.\n\n' : '') + 'Analyze this job posting:\n\n' + (override ? lastJd : jd) }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
@@ -491,12 +491,12 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13 }}><Dots />{loadMsg}</div>}
       </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
-      {currentResult && <ResultCard result={currentResult} />}
+      {currentResult && <ResultCard result={currentResult} lastJd={lastJd} onOverride={() => analyze(true)} />}
     </div>
   )
 }
 
-function ResultCard({ result:r }) {
+function ResultCard({ result:r, lastJd, onOverride }) {
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
   return (
@@ -513,6 +513,16 @@ function ResultCard({ result:r }) {
           <span style={{ width:6, height:6, borderRadius:'50%', background:'currentColor', display:'inline-block' }} />{vc.label}
         </div>
         <p style={{ fontSize:13, color:C.muted, lineHeight:1.65, marginBottom:16 }}>{r.verdictReason}</p>
+{r.verdict !== 'APPLY' && onOverride && (
+  <div style={{ marginBottom:16 }}>
+    <Btn small onClick={onOverride} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Apply anyway →</Btn>
+  </div>
+)}
+{(r.verdict === 'SKIP' && !r.coverLetter) && (
+  <div style={{ marginBottom:16 }}>
+    <Btn small onClick={() => alert('Coming soon — override will regenerate with a cover letter.')}>Apply anyway →</Btn>
+  </div>
+)}
         {r.companySnapshot && <div style={{ marginBottom:16, padding:'12px 16px', borderRadius:10, background:C.cyanDim, borderLeft:`2px solid ${C.cyan}`, fontSize:13, lineHeight:1.65 }}>{r.companySnapshot}</div>}
         {r.scamFlags?.length>0 && <div style={{ marginBottom:14 }}><Label>Scam signals</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.scamFlags.map(f=><Pill key={f} color={C.amber} bg={C.amberBg}>{f}</Pill>)}</div></div>}
         {r.matchedSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Skills matched</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.matchedSkills.map(s=><Pill key={s} color={C.green} bg={C.greenBg}>{s}</Pill>)}</div></div>}
@@ -579,6 +589,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   const [answers, setAnswers] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
+  const [lastJd, setLastJd] = useState('')
   const [resume, setResume] = useState(voiceProfile?.resume||'')
   const [resumeLoading, setResumeLoading] = useState(false)
   const fileRef = useRef()
