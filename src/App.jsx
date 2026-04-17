@@ -153,21 +153,22 @@ function generateResumePDF(data) {
   doc.save(`${(data.name||'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
 }
 
-function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, override) {
+function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, applyThreshold, override) {
   const voiceInstruction = (voiceSection && voiceSection.trim().length > 0)
     ? 'Match the candidate voice profile exactly — their tone, rhythm, word choices, and anything they flag as unnatural. The voice profile is the only style guide. Do not impose your own style.'
     : 'No voice profile provided. Write professionally and neutrally. Clear, direct, human-sounding.'
 
+  const threshold = Number.isFinite(Number(applyThreshold)) ? Math.max(0, Math.min(100, Number(applyThreshold))) : 85
   const scoringRules = override
     ? 'OVERRIDE MODE: User has chosen to apply regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what. Still provide an honest score and verdict but always include all outputs.'
-    : 'SCORING: 0-100. 85+=APPLY+full output. 70-84=SKIP+no cover letter. <70=SKIP.\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.'
+    : `SCORING: 0-100. ${threshold}+=APPLY+full output. <${threshold}=SKIP+no cover letter unless obvious SCAM.\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
 
   return 'You are a job match analyzer and cover letter writer.\n' +
     resumeSection + '\n' +
     voiceSection + '\n\n' +
     scoringRules + '\n\n' +
     'OUTPUT — valid JSON only, no markdown:\n' +
-    '{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","outreachMessage":""}\n\n' +
+    '{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","projectAIPrompt":"","outreachMessage":""}\n\n' +
     'COVER LETTER (3 paragraphs, 250-350 words):\n' +
     '- ' + voiceInstruction + '\n' +
     (bannedPhrases && bannedPhrases.trim()
@@ -188,17 +189,21 @@ function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, u
     '[P1]\n\n[P2]\n\n[P3]\n\n' +
     'Best regards,\n' +
     userName + '\n\n' +
-    'OUTREACH: under 280 chars, direct, references the specific role'
+    'OUTREACH: under 280 chars, direct, references the specific role\n\n' +
+    'ALWAYS INCLUDE GAP-BRIDGING HELP:\n' +
+    '- projectIdea: always provide one concrete portfolio project tailored to this job that can prove missing skills fast. Include recommended digital tools to build it (AI tools, automation tools, dev/design/analytics platforms as relevant)\n' +
+    '- projectAIPrompt: provide a ready-to-copy prompt the candidate can paste into an AI assistant to help plan and build the suggested project step-by-step\n' +
+    '- transferableNotes: keep it brief (2-4 sentences). Map existing strengths to missing skills, include 2-3 practical next steps, and mention specific digital tools/platforms that would help close the gaps quickly'
 }
 
 function OnboardingScreen({ onComplete }) {
-  const [data, setData] = useState({ name:'', email:'', phone:'', linkedin:'', portfolio:'' })
+  const [data, setData] = useState({ name:'', email:'', phone:'', linkedin:'', portfolio:'', matchThreshold:85 })
   const set = (k,v) => setData(d => ({...d,[k]:v}))
   const ready = data.name.trim() && data.email.trim()
   const field = { width:'100%', border:`1px solid ${C.border}`, borderRadius:8, padding:'10px 14px', fontSize:14, fontFamily:"'DM Sans', sans-serif", background:C.surface, color:C.text, outline:'none', boxSizing:'border-box' }
   return (
     <div style={{ maxWidth:480, margin:'0 auto' }}>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Welcome to VoiceApply <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Welcome to MyApply <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:32, lineHeight:1.6 }}>Set up your profile. This goes in your cover letter header and resume.</p>
       <Card>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
@@ -222,6 +227,7 @@ function SettingsTab({ profile, onProfileSaved }) {
     phone: profile?.phone || '',
     linkedin: profile?.linkedin || '',
     portfolio: profile?.portfolio || '',
+    matchThreshold: Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85,
   })
   const [saved, setSaved] = useState(false)
   const set = (k, v) => {
@@ -245,13 +251,24 @@ function SettingsTab({ profile, onProfileSaved }) {
 
   return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Settings <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Settings <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Update your profile details and manage local app data.</p>
       <Card>
         <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
           {[['name','Your name *',''],['email','Email *',''],['phone','Phone',''],['linkedin','LinkedIn URL','linkedin.com/in/yourname'],['portfolio','Portfolio URL','yoursite.com']].map(([k,l,ph]) => (
             <div key={k}><Label>{l}</Label><input value={data[k]} onChange={e=>set(k,e.target.value)} placeholder={ph} style={field} /></div>
           ))}
+          <div>
+            <Label>Minimum match score to apply (%)</Label>
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={data.matchThreshold}
+              onChange={e => set('matchThreshold', Math.max(0, Math.min(100, Number(e.target.value || 0))))}
+              style={field}
+            />
+          </div>
         </div>
         <div style={{ display:'flex', gap:12, marginTop:24, flexWrap:'wrap' }}>
           <Btn primary onClick={saveProfile} disabled={!canSave}>Update profile</Btn>
@@ -438,12 +455,13 @@ export default function App() {
 
   return (
     <div style={{ fontFamily:"'DM Sans', sans-serif", background:C.bg, minHeight:'100vh', color:C.text }}>
-      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+      <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;1,400&family=DM+Mono:wght@400;500&family=Rubik:wght@400&family=Syne:wght@700&display=swap" rel="stylesheet" />
       <header style={{ borderBottom:`1px solid ${C.border}`, background:C.bg, position:'sticky', top:0, zIndex:10 }}>
         <div style={{ maxWidth:760, margin:'0 auto', padding:'0 24px', height:60, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-          <div style={{ display:'flex', alignItems:'baseline', gap:8 }}>
-            <span style={{ fontSize:18, fontWeight:600, letterSpacing:'-0.02em' }}>VoiceApply</span>
-            <span style={{ fontSize:11, color:C.cyan, fontFamily:"'DM Mono', monospace" }}>✦ beta</span>
+          <div style={{ display:'flex', alignItems:'baseline', gap:0 }}>
+            <span style={{ fontSize:18, fontWeight:300, letterSpacing:'0.01em', color:'#9e9e96', fontFamily:"'Rubik', 'DM Sans', sans-serif", transform:'scaleX(1.08)', transformOrigin:'left center', display:'inline-block' }}>my</span>
+            <span style={{ fontSize:18, fontWeight:700, letterSpacing:'-0.02em', color:'#1c1c1a', fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Apply</span>
+            <span style={{ fontSize:13, color:'#4ecdc4', lineHeight:1, marginLeft:4 }}>▸</span>
           </div>
           {profile && (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -479,7 +497,7 @@ export default function App() {
           <>
             {!keySaved && (
               <div style={{ marginBottom:32, padding:'14px 18px', borderRadius:12, background:C.amberBg, border:`1px solid rgba(122,79,0,0.15)`, display:'flex', flexWrap:'wrap', alignItems:'center', gap:12 }}>
-                <span style={{ fontSize:11, fontWeight:600, color:C.amber, textTransform:'uppercase', letterSpacing:'0.06em' }}>API Key</span>
+                <span style={{ fontSize:11, fontWeight:600, color:C.amber, textTransform:'uppercase', letterSpacing:'0.06em', display:'inline-flex', alignItems:'center', gap:6 }}><span aria-hidden="true">🔑</span>API Key</span>
                 <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)} onKeyDown={e=>e.key==='Enter'&&saveKey()} placeholder="sk-ant-api03-..."
                   style={{ flex:1, minWidth:200, background:'transparent', border:'none', outline:'none', fontSize:13, fontFamily:"'DM Mono', monospace", color:C.text }} />
                 <Btn small onClick={saveKey}>Save key</Btn>
@@ -496,7 +514,7 @@ export default function App() {
             {tab==='Documents' && (
               docView==='cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
               : docView==='resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
-              : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} />
+              : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} profile={profile} />
             )}
             {tab==='VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
             {tab==='History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
@@ -510,6 +528,8 @@ export default function App() {
 
 function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, setCurrentResult, setTab, profile }) {
   const [jd, setJd] = useState('')
+  const [inputMode, setInputMode] = useState('description')
+  const [jobUrl, setJobUrl] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadMsg, setLoadMsg] = useState('')
   const [error, setError] = useState('')
@@ -517,7 +537,8 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
 
   async function analyze(override = false) {
     if (!keySaved) { alert('Save your API key first.'); return }
-    if (!jd.trim()) { alert('Paste a job description first.'); return }
+    if (inputMode === 'description' && !jd.trim()) { alert('Paste a job description first.'); return }
+    if (inputMode === 'url' && !jobUrl.trim()) { alert('Paste a job URL first.'); return }
     setLoading(true); setError(''); setCurrentResult(null)
     let mi=0; setLoadMsg(msgs[0])
     const interval = setInterval(() => { mi=(mi+1)%msgs.length; setLoadMsg(msgs[mi]) }, 2500)
@@ -528,10 +549,14 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       const userContact = [profile?.email, profile?.phone].filter(Boolean).join(' | ')
       const userLinks = [profile?.linkedin, profile?.portfolio].filter(Boolean).join(' | ')
       const bannedPhrases = voiceProfile?.bannedPhrases || ''
+      const applyThreshold = Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85
+      const userPrompt = inputMode === 'url'
+        ? 'Analyze this job posting URL. If you cannot access it directly, infer likely role expectations from the URL path and explain uncertainty in verdictReason:\n\n' + jobUrl
+        : 'Analyze this job posting:\n\n' + jd
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,bannedPhrases,override), messages:[{ role:'user', content:'Analyze this job posting:\n\n'+jd }] }),
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,bannedPhrases,applyThreshold,override), messages:[{ role:'user', content:userPrompt }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
@@ -551,23 +576,131 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           <Btn small onClick={() => setTab('VoicePrint')} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Set up →</Btn>
         </div>
       )}
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Analyze a job <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Paste a job description. Get your match score, cover letter, and outreach message.</p>
-      <Label>Job description</Label>
-      <TextArea value={jd} onChange={e=>setJd(e.target.value)} rows={10} placeholder="Paste the full job description here..." />
-      <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16 }}>
-        <Btn primary onClick={() => analyze(false)} disabled={loading}>{loading?'Analyzing...':'Analyze job →'}</Btn>
-        {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13 }}><Dots />{loadMsg}</div>}
+      <div style={{ marginBottom:14 }}>
+        <Label>Mode</Label>
+        <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
+          {[
+            { id:'description', label:'Paste description' },
+            { id:'url', label:'Paste URL' },
+          ].map(opt => (
+            <button key={opt.id} onClick={() => setInputMode(opt.id)} style={{
+              padding:'7px 14px', borderRadius:8, cursor:'pointer', fontSize:13, fontFamily:"'DM Sans', sans-serif",
+              transition:'all 0.15s', background:inputMode===opt.id?C.dark:C.surface, color:inputMode===opt.id?'#fff':C.muted,
+              border:inputMode===opt.id?`1px solid ${C.dark}`:`1px solid ${C.border}`,
+            }}>{opt.label}</button>
+          ))}
+        </div>
+      </div>
+      {inputMode === 'description' ? (
+        <>
+          <Label>Job description</Label>
+          <TextArea value={jd} onChange={e=>setJd(e.target.value)} rows={10} placeholder="Paste the full job description here..." />
+        </>
+      ) : (
+        <>
+          <Label>Job URL</Label>
+          <input
+            value={jobUrl}
+            onChange={e=>setJobUrl(e.target.value)}
+            placeholder="https://company.com/jobs/role"
+            style={{ width:'100%', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 14px', fontSize:13, fontFamily:"'DM Sans', sans-serif", background:C.surface, color:C.text, outline:'none', boxSizing:'border-box' }}
+          />
+        </>
+      )}
+      <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16, justifyContent:'flex-end' }}>
+        {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
+        <button
+          onClick={() => analyze(false)}
+          disabled={loading}
+          style={{
+            border:'none', cursor:loading?'not-allowed':'pointer', background:'transparent',
+            color:C.cyan, fontSize:44, fontWeight:700, lineHeight:1, opacity:loading?0.45:1,
+            fontFamily:"'DM Sans', sans-serif", display:'inline-flex', alignItems:'center', justifyContent:'center',
+            padding:0, textShadow:'0 3px 12px rgba(78,205,196,0.45)', transform:'translateY(-1px)',
+            transition:'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
+          }}
+          onMouseEnter={e => {
+            if (loading) return
+            e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
+            e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
+          }}
+          onMouseLeave={e => {
+            e.currentTarget.style.transform = 'translateY(-1px)'
+            e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
+          }}
+          aria-label={loading ? 'Analyzing job' : 'Analyze job'}
+          title={loading ? 'Analyzing...' : 'Analyze'}
+        >
+          ▸
+        </button>
       </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
-      {currentResult && <ResultCard result={currentResult} onOverride={() => analyze(true)} />}
+      {currentResult && <ResultCard result={currentResult} onOverride={() => analyze(true)} apiKey={apiKey} />}
     </div>
   )
 }
 
-function ResultCard({ result:r, onOverride }) {
+function ResultCard({ result:r, onOverride, apiKey }) {
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
+  const projectPromptFallback = r.projectIdea
+    ? `Help me build this portfolio project for a ${r.jobTitle || 'target role'} role:\n\n${r.projectIdea}\n\nGive me:\n1) A practical plan with milestones\n2) Recommended tools (including AI/automation tools)\n3) A simple architecture + feature scope for v1\n4) A 1-week execution checklist\n5) Resume bullet points and interview talking points from this project`
+    : ''
+  const projectAIPromptText = (r.projectAIPrompt && r.projectAIPrompt.trim()) ? r.projectAIPrompt.trim() : projectPromptFallback
+  const [projectRunLoading, setProjectRunLoading] = useState(false)
+  const [projectRunError, setProjectRunError] = useState('')
+  const [projectRunResult, setProjectRunResult] = useState('')
+  const [showProjectOptions, setShowProjectOptions] = useState(false)
+  const [selectedProjectMode, setSelectedProjectMode] = useState('')
+
+  const projectBuildModes = [
+    { id:'mvp', label:'Fast MVP plan' },
+    { id:'tools', label:'AI + tool stack' },
+    { id:'steps', label:'Step-by-step build' },
+    { id:'portfolio', label:'Portfolio-ready delivery' },
+  ]
+
+  const modePromptMap = {
+    mvp: 'Give me a fast MVP plan I can execute quickly (scope, milestones, and must-have features only).',
+    tools: 'Recommend the best digital tools for this build, including AI and automation tools, and explain why each is useful.',
+    steps: 'Break this into clear build steps with practical implementation guidance for each step.',
+    portfolio: 'Show how to shape this into a strong portfolio piece with measurable outcomes and interview talking points.',
+  }
+
+  async function runProjectPrompt(modeId) {
+    if (!apiKey || !projectAIPromptText) return
+    const modeInstruction = modePromptMap[modeId] || modePromptMap.mvp
+    const runPrompt =
+      `Project suggestion:\n${r.projectIdea || ''}\n\n` +
+      `${modeInstruction}\n\n` +
+      `Context prompt:\n${projectAIPromptText}`
+
+    setProjectRunLoading(true)
+    setProjectRunError('')
+    setSelectedProjectMode(modeId)
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST',
+        headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
+        body:JSON.stringify({
+          model:'claude-sonnet-4-20250514',
+          max_tokens:1200,
+          system:'You are a practical project coach. Give concise, actionable steps, concrete tool recommendations, and implementation details suitable for shipping quickly.',
+          messages:[{ role:'user', content:runPrompt }],
+        }),
+      })
+      if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
+      const data = await res.json()
+      setProjectRunResult(data.content.map(b=>b.text||'').join('').trim())
+      setShowProjectOptions(false)
+    } catch (e) {
+      setProjectRunError(e.message || 'Could not run AI prompt.')
+    } finally {
+      setProjectRunLoading(false)
+    }
+  }
   return (
     <div style={{ marginTop:32 }}>
       <Card>
@@ -593,10 +726,51 @@ function ResultCard({ result:r, onOverride }) {
         {r.scamFlags?.length>0 && <div style={{ marginBottom:14 }}><Label>Scam signals</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.scamFlags.map(f=><Pill key={f} color={C.amber} bg={C.amberBg}>{f}</Pill>)}</div></div>}
         {r.matchedSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Skills matched</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.matchedSkills.map(s=><Pill key={s} color={C.green} bg={C.greenBg}>{s}</Pill>)}</div></div>}
         {r.missingSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Gaps</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.missingSkills.map(s=><Pill key={s} color={C.red} bg={C.redBg}>{s}</Pill>)}</div></div>}
-        {r.transferableNotes && <p style={{ fontSize:13, color:C.muted, fontStyle:'italic', marginBottom:8, lineHeight:1.65 }}>{r.transferableNotes}</p>}
+        {r.transferableNotes && (
+          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.cyanDim, border:`1px solid ${C.cyanBorder}` }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.cyan, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Skill-gap strategy</div>
+            <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.transferableNotes}</div>
+          </div>
+        )}
+        {r.projectIdea && (
+          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.greenBg, border:'1px solid rgba(45,106,79,0.22)' }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.green, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Project suggestion</div>
+            <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.projectIdea}</div>
+            {projectAIPromptText && (
+              <div style={{ marginTop:10, padding:'10px 12px', borderRadius:10, background:C.surface, border:`1px solid ${C.border}` }}>
+                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
+                  <div />
+                  <button
+                    onClick={() => setShowProjectOptions(v => !v)}
+                    disabled={projectRunLoading || !apiKey}
+                    style={{ fontSize:12, lineHeight:1, padding:0, border:'none', background:'transparent', color:C.text, cursor:(projectRunLoading || !apiKey)?'not-allowed':'pointer', fontFamily:"'DM Sans', sans-serif", opacity:(projectRunLoading || !apiKey)?0.6:1, display:'inline-flex', alignItems:'center', gap:4, fontWeight:600 }}
+                    title="Choose AI build mode"
+                  >
+                    AI <span style={{ color:C.cyan, fontSize:13 }}>{projectRunLoading ? '…' : '▸'}</span>
+                  </button>
+                </div>
+                {showProjectOptions && !projectRunLoading && (
+                  <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:8 }}>
+                    {projectBuildModes.map(mode => (
+                      <button
+                        key={mode.id}
+                        onClick={() => runProjectPrompt(mode.id)}
+                        style={{ fontSize:11, padding:'5px 9px', borderRadius:20, border:`1px solid ${C.border}`, background:C.surface2, color:C.muted, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" }}
+                      >
+                        {mode.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {projectRunError && <div style={{ marginTop:8, fontSize:12, color:C.red }}>{projectRunError}</div>}
+                {projectRunLoading && <div style={{ marginTop:8, fontSize:12, color:C.muted }}>Running AI for {projectBuildModes.find(m => m.id===selectedProjectMode)?.label || 'project plan'}...</div>}
+                {projectRunResult && <div style={{ marginTop:8, fontSize:12, color:C.text, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{projectRunResult}</div>}
+              </div>
+            )}
+          </div>
+        )}
         <div style={{ marginTop:8 }}>
           {r.coverLetter && <Accordion title="Cover letter"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.coverLetter}</pre><CopyBtn text={r.coverLetter} /></Accordion>}
-          {r.projectIdea && <Accordion title="Project idea"><div style={{ padding:'12px 16px', borderRadius:10, background:C.cyanDim, borderLeft:`2px solid ${C.cyan}`, fontSize:13, lineHeight:1.65 }}>{r.projectIdea}</div></Accordion>}
           {r.outreachMessage && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
         </div>
       </Card>
@@ -604,15 +778,16 @@ function ResultCard({ result:r, onOverride }) {
   )
 }
 
-function DocumentsTab({ history, onOpenCover, onOpenResume, lastWithCover }) {
+function DocumentsTab({ history, onOpenCover, onOpenResume, lastWithCover, profile }) {
+  const applyThreshold = Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85
   return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Documents <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Documents <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:28 }}>Edit, download, and copy your cover letter and resume.</p>
       <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:32 }}>
         <Card style={{ display:'flex', flexDirection:'column', gap:12 }}>
           <div style={{ fontSize:13, fontWeight:600 }}>Cover letter</div>
-          <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, flex:1 }}>{lastWithCover?`Last: ${lastWithCover.jobTitle} at ${lastWithCover.company}`:'No cover letter yet. Analyze a job that scores 85%+ first.'}</div>
+          <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, flex:1 }}>{lastWithCover?`Last: ${lastWithCover.jobTitle} at ${lastWithCover.company}`:`No cover letter yet. Analyze a job that scores ${applyThreshold}%+ first.`}</div>
           <Btn primary small onClick={onOpenCover} disabled={!lastWithCover}>Open editor →</Btn>
         </Card>
         <Card style={{ display:'flex', flexDirection:'column', gap:12 }}>
@@ -701,7 +876,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
 
   if (step==='done') return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>VoicePrint <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>VoicePrint <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24 }}>Your voice is active.</p>
       <div style={{ marginBottom:16, padding:'12px 18px', borderRadius:12, background:C.greenBg, border:`1px solid rgba(45,106,79,0.15)`, display:'flex', alignItems:'center', justifyContent:'space-between' }}>
         <span style={{ fontSize:13, fontWeight:500, color:C.green }}>✓ Voice profile active</span>
@@ -722,7 +897,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
 
   if (step==='resume') return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Add your resume <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Add your resume <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24 }}>Upload PDF or paste text. Used for job scoring only.</p>
       <div onClick={() => fileRef.current.click()} style={{ border:`2px dashed ${C.border}`, borderRadius:14, padding:32, textAlign:'center', cursor:'pointer', marginBottom:16 }}
         onMouseOver={e=>e.currentTarget.style.borderColor=C.cyan} onMouseOut={e=>e.currentTarget.style.borderColor=C.border}>
@@ -742,7 +917,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
 
   return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>VoicePrint <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>VoicePrint <span style={{ color:C.cyan }}>▸</span></h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:32 }}>Teach the app how you write so cover letters sound like you.</p>
       <div style={{ marginBottom:24 }}>
         <Label>Writing samples</Label>
@@ -772,7 +947,7 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
         </div>
       </div>
       {error && <div style={{ marginBottom:16, padding:'12px 16px', borderRadius:10, background:C.redBg, fontSize:13, color:C.red }}>{error}</div>}
-      <Btn primary onClick={buildProfile} disabled={loading||!samples.trim()||!allAnswered}>{loading?'Building your voice profile...':'Build VoicePrint ✦'}</Btn>
+      <Btn primary onClick={buildProfile} disabled={loading||!samples.trim()||!allAnswered}>{loading?'Building your voice profile...':<>Build VoicePrint <span style={{ color:C.cyan }}>▸</span></>}</Btn>
     </div>
   )
 }
@@ -781,7 +956,7 @@ function HistoryTab({ history, onView }) {
   const ss = s => ({ fontSize:12, fontFamily:'monospace', padding:'3px 10px', borderRadius:20, background:s>=85?C.greenBg:s>=70?C.amberBg:C.redBg, color:s>=85?C.green:s>=70?C.amber:C.red })
   return (
     <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>History <span style={{ color:C.cyan }}>✦</span></h1>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>History <span style={{ color:C.cyan }}>▸</span></h1>
       {!history.length ? <div style={{ textAlign:'center', padding:'64px 16px', color:C.faint, fontSize:14 }}>No jobs analyzed yet.</div> : (
         <>
           <p style={{ fontSize:14, color:C.muted, marginBottom:20 }}>{history.length} job{history.length!==1?'s':''} analyzed</p>
