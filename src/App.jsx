@@ -719,11 +719,11 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
   const [chatError, setChatError] = useState('')
   const chatBottomRef = useRef(null)
   const [upskillOpen, setUpskillOpen] = useState(false)
-  const [upskillProjectOpen, setUpskillProjectOpen] = useState(false)
+  const [outreachOpen, setOutreachOpen] = useState(false)
 
   useEffect(() => {
     setUpskillOpen(false)
-    setUpskillProjectOpen(false)
+    setOutreachOpen(false)
   }, [r.id])
 
   function closePanel() {
@@ -911,7 +911,7 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
         {r.scamFlags?.length>0 && <div style={{ marginBottom:14 }}><Label>Scam signals</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.scamFlags.map(f=><Pill key={f} color={C.amber} bg={C.amberBg}>{f}</Pill>)}</div></div>}
         {r.matchedSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Skills matched</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.matchedSkills.map(s=><Pill key={s} color={C.green} bg={C.greenBg}>{s}</Pill>)}</div></div>}
         {r.missingSkills?.length>0 && <div style={{ marginBottom:14 }}><Label>Gaps</Label><div style={{ display:'flex', flexWrap:'wrap', gap:6 }}>{r.missingSkills.map(s=><Pill key={s} color={C.red} bg={C.redBg}>{s}</Pill>)}</div></div>}
-        {r.missingSkills?.length > 0 && (r.transferableNotes || r.projectIdea) && (
+        {r.missingSkills?.length > 0 && allowApplyOutputs && (r.transferableNotes || r.projectIdea) && (
           <div style={{ marginBottom: 16, borderTop: `1px solid ${C.border}` }}>
             <button
               type="button"
@@ -933,63 +933,33 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
               >▶</span>
             </button>
             {upskillOpen && (
-              <div style={{ paddingBottom: 16 }}>
+              <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {r.transferableNotes && (
-                  <div style={{ marginBottom: r.projectIdea ? 14 : 0, padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
                     <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Skill Gap Strategy</div>
                     <div style={{ fontSize: 12, color: C.text, lineHeight: 1.65 }}>{r.transferableNotes}</div>
                   </div>
                 )}
                 {r.projectIdea && (
-                  <div>
-                    <button
-                      type="button"
-                      onClick={() => setUpskillProjectOpen(v => !v)}
-                      style={{
-                        width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6,
-                        padding: '10px 0', background: 'none', border: 'none',
-                        borderTop: r.transferableNotes ? `1px solid ${C.border}` : 'none',
-                        cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
-                      }}
-                    >
-                      <span style={{ fontSize: 14, fontWeight: 600 }}>Project Idea</span>
-                      <span
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Project Idea</div>
+                    <div style={{ fontSize: 12, color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap', marginBottom: 10 }}>{r.projectIdea}</div>
+                    <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
+                      <button
+                        type="button"
+                        onClick={openPanel}
+                        disabled={!apiKey}
+                        title={apiKey ? 'Open project builder' : 'Save your API key first'}
                         style={{
-                          fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1,
-                          transform: upskillProjectOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
-                          transformOrigin: 'center',
+                          margin: 0, padding: '4px 8px', border: 'none', background: 'transparent',
+                          cursor: !apiKey ? 'not-allowed' : 'pointer', opacity: !apiKey ? 0.45 : 1, fontFamily: "'DM Sans', sans-serif",
+                          display: 'inline-flex', flexDirection: 'row', alignItems: 'center', gap: 5, color: C.text,
                         }}
-                        aria-hidden="true"
-                      >▶</span>
-                    </button>
-                    {upskillProjectOpen && (
-                      <div style={{ marginTop: 6, padding: '12px 12px 10px', borderRadius: 12, background: C.greenBg, border: '1px solid rgba(45,106,79,0.22)' }}>
-                        <div
-                          style={{
-                            width: '100%', boxSizing: 'border-box', marginBottom: 10, fontSize: 12, fontFamily: "'DM Sans', sans-serif",
-                            color: C.text, lineHeight: 1.55, whiteSpace: 'pre-wrap',
-                          }}
-                        >
-                          {r.projectIdea}
-                        </div>
-                        <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'center' }}>
-                          <button
-                            type="button"
-                            onClick={openPanel}
-                            disabled={!apiKey}
-                            title={apiKey ? 'Open project builder' : 'Save your API key first'}
-                            style={{
-                              margin: 0, padding: '4px 8px', border: 'none', background: 'transparent',
-                              cursor: !apiKey ? 'not-allowed' : 'pointer', opacity: !apiKey ? 0.45 : 1, fontFamily: "'DM Sans', sans-serif",
-                              display: 'inline-flex', flexDirection: 'row', alignItems: 'center', gap: 5, color: C.text,
-                            }}
-                          >
-                            <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.06em' }}>AI</span>
-                            <span style={{ fontSize: 9, color: C.cyan, lineHeight: 1 }} aria-hidden="true">▶</span>
-                          </button>
-                        </div>
-                      </div>
-                    )}
+                      >
+                        <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.06em' }}>AI</span>
+                        <span style={{ fontSize: 9, color: C.cyan, lineHeight: 1 }} aria-hidden="true">▶</span>
+                      </button>
+                    </div>
                   </div>
                 )}
               </div>
@@ -1003,19 +973,17 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
           </div>
         )}
         {!r.missingSkills?.length && r.projectIdea && (
-          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.greenBg, border:'1px solid rgba(45,106,79,0.22)' }}>
-            <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', gap:14 }}>
-              <div style={{ flex:1, minWidth:0 }}>
-                <div style={{ fontSize:11, fontWeight:600, color:C.green, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Project Idea</div>
-                <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.projectIdea}</div>
-              </div>
+          <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.cyanDim, border:`1px solid ${C.cyanBorder}` }}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.cyan, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:8 }}>Project Idea</div>
+            <div style={{ fontSize:12, color:C.text, lineHeight:1.55, whiteSpace:'pre-wrap', marginBottom:10 }}>{r.projectIdea}</div>
+            <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center' }}>
               <button
                 type="button"
                 onClick={openPanel}
                 disabled={!apiKey}
                 title={apiKey ? 'Open project builder' : 'Save your API key first'}
                 style={{
-                  flexShrink:0, alignSelf:'flex-start', margin:0, padding:'4px 8px', border:'none', background:'transparent',
+                  margin:0, padding:'4px 8px', border:'none', background:'transparent',
                   cursor:!apiKey?'not-allowed':'pointer', opacity:!apiKey?0.45:1, fontFamily:"'DM Sans', sans-serif",
                   display:'inline-flex', flexDirection:'row', alignItems:'center', gap:5, color:C.text,
                 }}
@@ -1026,10 +994,47 @@ function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
             </div>
           </div>
         )}
-        <div style={{ marginTop:8 }}>
-          {showCoverLetter && <Accordion title="Cover letter"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.coverLetter}</pre><CopyBtn text={r.coverLetter} /></Accordion>}
-          {showOutreach && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
-        </div>
+        {(showCoverLetter || showOutreach) && (
+          <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}` }}>
+            <button
+              type="button"
+              onClick={() => setOutreachOpen(v => !v)}
+              style={{
+                width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 6,
+                padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
+                fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
+              }}
+            >
+              <span>Outreach</span>
+              <span
+                style={{
+                  fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1,
+                  transform: outreachOpen ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
+                  transformOrigin: 'center',
+                }}
+                aria-hidden="true"
+              >▶</span>
+            </button>
+            {outreachOpen && (
+              <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
+                {showCoverLetter && (
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
+                    <CopyBtn text={r.coverLetter} />
+                  </div>
+                )}
+                {showOutreach && (
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.cyanDim, border: `1px solid ${C.cyanBorder}` }}>
+                    <div style={{ fontSize: 11, fontWeight: 600, color: C.cyan, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.75, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
+                    <CopyBtn text={r.outreachMessage} />
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </Card>
     </div>
   )
