@@ -651,13 +651,14 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         </>
       )}
       {inputMode === 'description' && jd.trim() && !loading && (
-        <div style={{ marginTop: 8 }}>
+        <div style={{ marginTop: 8, marginLeft: 6 }}>
           <button
             type="button"
             onClick={() => { setJd(''); setCurrentResult(null); setError('') }}
             style={{
-              padding: 0, border: 'none', background: 'none', cursor: 'pointer', fontFamily: "'DM Sans', sans-serif",
-              fontSize: 11, color: C.muted, textDecoration: 'underline', textUnderlineOffset: 2,
+              padding: '4px 10px', borderRadius: 6, border: `1px solid ${C.border}`, background: C.surface2,
+              cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", fontSize: 11, fontWeight: 500, color: C.muted,
+              lineHeight: 1.3, textDecoration: 'none',
             }}
           >
             Clear
