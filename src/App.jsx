@@ -169,23 +169,6 @@ function qualifiesForApplyLetterOutputs(r, matchThreshold) {
 
 const KIT_TAILORED_RESUME_PREFIX = 'va_kit_tailored_resume_'
 
-function CyanPlayTriangle({ size = 10 }) {
-  const h = size
-  const w = Math.max(5, Math.round(size * 0.62))
-  return (
-    <span
-      style={{
-        display: 'inline-block', width: 0, height: 0, flexShrink: 0,
-        borderTop: `${h / 2}px solid transparent`,
-        borderBottom: `${h / 2}px solid transparent`,
-        borderLeft: `${w}px solid ${C.cyan}`,
-        verticalAlign: 'middle',
-      }}
-      aria-hidden
-    />
-  )
-}
-
 function resumeLineLooksSection(trimmed) {
   return (
     trimmed.length >= 3 &&
@@ -313,14 +296,32 @@ function TailoredResumeView({ text }) {
   )
 }
 
-function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach }) {
+function collapsibleChevronStyle(open) {
+  return {
+    fontSize: 9,
+    color: C.cyan,
+    lineHeight: 1,
+    transform: open ? 'rotate(90deg)' : 'rotate(0deg)',
+    transition: 'transform 0.2s ease',
+    transformOrigin: 'center',
+  }
+}
+
+function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach, embedded }) {
   const storageKey = KIT_TAILORED_RESUME_PREFIX + String(r?.id ?? `${r?.jobTitle || ''}_${r?.company || ''}`.replace(/\s/g, '_'))
-  const [open, setOpen] = useState(true)
+  const [mainOpen, setMainOpen] = useState(false)
+  const [connectOpen, setConnectOpen] = useState(false)
+  const [coverOpen, setCoverOpen] = useState(false)
+  const [resumeOpen, setResumeOpen] = useState(false)
   const [tailored, setTailored] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
 
   useEffect(() => {
+    setMainOpen(false)
+    setConnectOpen(false)
+    setCoverOpen(false)
+    setResumeOpen(false)
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
     } catch {
@@ -407,71 +408,121 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
 
+  const subBtn = {
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    gap: 10,
+    padding: '10px 0',
+    background: 'none',
+    border: 'none',
+    borderBottom: `1px solid ${C.border}`,
+    cursor: 'pointer',
+    fontSize: 13,
+    fontWeight: 600,
+    fontFamily: "'DM Sans', sans-serif",
+    color: C.text,
+    textAlign: 'left',
+  }
+
   return (
-    <div style={{ marginTop: 4, borderTop: `1px solid ${C.border}`, paddingTop: 4 }}>
+    <div
+      style={
+        embedded
+          ? { borderTop: `1px solid ${C.border}` }
+          : { marginTop: 8, borderTop: `1px solid ${C.border}`, paddingTop: 4 }
+      }
+    >
       <button
         type="button"
-        onClick={() => setOpen(v => !v)}
+        onClick={() => setMainOpen(v => !v)}
         style={{
-          width: '100%', display: 'flex', justifyContent: 'flex-start', alignItems: 'center', gap: 8,
-          padding: '14px 0', background: 'none', border: 'none', cursor: 'pointer',
-          fontSize: 14, fontWeight: 600, fontFamily: "'DM Sans', sans-serif", color: C.text, textAlign: 'left',
+          width: '100%',
+          display: 'flex',
+          justifyContent: 'flex-start',
+          alignItems: 'center',
+          gap: 6,
+          padding: '14px 0',
+          background: 'none',
+          border: 'none',
+          cursor: 'pointer',
+          fontSize: 14,
+          fontWeight: 600,
+          fontFamily: "'DM Sans', sans-serif",
+          color: C.text,
+          textAlign: 'left',
         }}
       >
-        <CyanPlayTriangle size={11} />
         <span>myResume+</span>
-        <span
-          style={{
-            fontSize: 9, color: C.cyan, marginLeft: 2, lineHeight: 1,
-            transform: open ? 'rotate(90deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease',
-            transformOrigin: 'center',
-          }}
-          aria-hidden
-        >
+        <span style={collapsibleChevronStyle(mainOpen)} aria-hidden>
           ▶
         </span>
       </button>
-      {open && (
-        <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 16 }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, color: C.gapPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 10 }}>
-              Tailored resume
+      {mainOpen && (
+        <div style={{ paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
+          {showOutreach && (
+            <div style={{ marginBottom: 4 }}>
+              <button type="button" onClick={() => setConnectOpen(v => !v)} style={subBtn}>
+                <span>Connect · outreach</span>
+                <span style={collapsibleChevronStyle(connectOpen)} aria-hidden>▶</span>
+              </button>
+              {connectOpen && (
+                <div style={{ padding: '12px 0 16px', borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
+                    <CopyBtn text={r.outreachMessage} />
+                  </div>
+                </div>
+              )}
             </div>
-            {loading && (
-              <div style={{ padding: 20, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
-                <Dots /> Drafting your resume for this role…
+          )}
+          {showCoverLetter && (
+            <div style={{ marginBottom: 4 }}>
+              <button type="button" onClick={() => setCoverOpen(v => !v)} style={subBtn}>
+                <span>Cover letter</span>
+                <span style={collapsibleChevronStyle(coverOpen)} aria-hidden>▶</span>
+              </button>
+              {coverOpen && (
+                <div style={{ padding: '12px 0 16px', borderBottom: `1px solid ${C.border}` }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
+                    <CopyBtn text={r.coverLetter} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          <div>
+            <button type="button" onClick={() => setResumeOpen(v => !v)} style={{ ...subBtn, borderBottom: resumeOpen ? `1px solid ${C.border}` : 'none' }}>
+              <span>Tailored resume</span>
+              <span style={collapsibleChevronStyle(resumeOpen)} aria-hidden>▶</span>
+            </button>
+            {resumeOpen && (
+              <div style={{ padding: '12px 0 8px' }}>
+                {loading && (
+                  <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
+                    <Dots /> Drafting your resume for this role…
+                  </div>
+                )}
+                {!loading && (
+                  <>
+                    {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
+                    <TailoredResumeView text={tailored} />
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, alignItems: 'center' }}>
+                      <Btn small primary disabled={loading || !canGenerate} onClick={generateTailoredResume}>
+                        {tailored.trim() ? 'Regenerate' : 'Generate'}
+                      </Btn>
+                      {tailored.trim() ? <CopyBtn text={tailored} /> : null}
+                    </div>
+                    {!sourceResume && (
+                      <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
+                    )}
+                  </>
+                )}
               </div>
             )}
-            {!loading && (
-              <>
-                {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
-                <TailoredResumeView text={tailored} />
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, alignItems: 'center' }}>
-                  <Btn small primary disabled={loading || !canGenerate} onClick={generateTailoredResume}>
-                    {tailored.trim() ? 'Regenerate' : 'Generate'}
-                  </Btn>
-                  {tailored.trim() ? <CopyBtn text={tailored} /> : null}
-                </div>
-                {!sourceResume && (
-                  <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
-                )}
-              </>
-            )}
           </div>
-          {showCoverLetter && (
-            <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.letterPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Cover letter</div>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
-              <CopyBtn text={r.coverLetter} />
-            </div>
-          )}
-          {showOutreach && (
-            <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
-              <div style={{ fontSize: 11, fontWeight: 600, color: C.connectPanelTitle, textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: 8 }}>Connect</div>
-              <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
-              <CopyBtn text={r.outreachMessage} />
-            </div>
-          )}
         </div>
       )}
     </div>
@@ -1261,6 +1312,18 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                 aria-hidden="true"
               >▶</span>
             </button>
+            {allowApplyOutputs && (showCoverLetter || showOutreach) && (
+              <MyResumePlusSection
+                r={r}
+                voiceProfile={voiceProfile}
+                apiKey={apiKey}
+                keySaved={keySaved}
+                allowApplyOutputs={allowApplyOutputs}
+                showCoverLetter={showCoverLetter}
+                showOutreach={showOutreach}
+                embedded
+              />
+            )}
             {upskillOpen && (
               <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {r.transferableNotes && (
@@ -1290,17 +1353,6 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                       </button>
                     </div>
                   </div>
-                )}
-                {allowApplyOutputs && (showCoverLetter || showOutreach) && (
-                  <MyResumePlusSection
-                    r={r}
-                    voiceProfile={voiceProfile}
-                    apiKey={apiKey}
-                    keySaved={keySaved}
-                    allowApplyOutputs={allowApplyOutputs}
-                    showCoverLetter={showCoverLetter}
-                    showOutreach={showOutreach}
-                  />
                 )}
               </div>
             )}
