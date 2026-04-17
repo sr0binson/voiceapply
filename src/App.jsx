@@ -821,6 +821,42 @@ function HistoryTab({ history, onView }) {
 
 // ─── System Prompt ────────────────────────────────────────────────────────────
 function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks) {
+  const hasVoice = voiceSection && voiceSection.trim().length > 0
+
+  return `You are a job match analyzer and cover letter writer.
+${resumeSection}
+${voiceSection}
+
+SCORING: 0-100. 85+=APPLY+full output. 70-84=SKIP+no cover letter. <70=SKIP.
+SCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.
+
+OUTPUT — valid JSON only, no markdown:
+{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","outreachMessage":""}
+
+COVER LETTER (score>=85 and APPLY only, 3 paragraphs, 250-350 words):
+- ${hasVoice ? 'Match the voice profile exactly — tone, rhythm, word choices, and anything they flag as unnatural for them. The voice profile is the only style guide.' : 'No voice profile set up. Write professionally and neutrally. Clear, direct, human.'}
+  - ${voiceInstruction}
+}
+- Never use hollow filler phrases that no real person says out loud
+- Bridge skill gaps honestly using transferable experience
+- End with a direct call to action
+- Keep it to one page — 250-350 words maximum
+- Structure:
+${userName}
+${userContact}
+${userLinks}
+
+[DATE]
+
+Dear [Hiring Manager Name],
+
+[P1][P2][P3]
+
+Best regards,
+${userName}
+
+OUTREACH: under 280 chars, direct, references the specific role`
+
   return `You are a job match analyzer and cover letter writer.
 ${resumeSection}
 ${voiceSection}
