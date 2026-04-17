@@ -153,7 +153,7 @@ function generateResumePDF(data) {
   doc.save(`${(data.name||'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
 }
 
-function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, override) {
+function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, override) {
   const voiceInstruction = (voiceSection && voiceSection.trim().length > 0)
     ? 'Match the candidate voice profile exactly — their tone, rhythm, word choices, and anything they flag as unnatural. The voice profile is the only style guide. Do not impose your own style.'
     : 'No voice profile provided. Write professionally and neutrally. Clear, direct, human-sounding.'
@@ -170,7 +170,11 @@ function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, u
     '{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","outreachMessage":""}\n\n' +
     'COVER LETTER (3 paragraphs, 250-350 words):\n' +
     '- ' + voiceInstruction + '\n' +
+    (bannedPhrases && bannedPhrases.trim()
+      ? '- The candidate has specifically flagged these phrases as ones they never use: ' + bannedPhrases.trim() + '\n'
+      : '') +
     '- Never use hollow filler phrases that no real person says out loud\n' +
+    '- No emojis ever — not in the cover letter, not in the outreach message\n' +
     '- ALWAYS stay strictly within the candidate\'s actual experience — never invent degrees, certifications, or background not in their resume\n' +
     '- Universal banned words: perfectly, perfect, leverage, synergy, transformative, utilize, seamlessly, innovative, impactful, robust, resonates\n' +
     '- Bridge skill gaps honestly using transferable experience\n' +
@@ -206,6 +210,54 @@ function OnboardingScreen({ onComplete }) {
           <Btn primary onClick={() => onComplete(data)} disabled={!ready}>Get started →</Btn>
           <p style={{ fontSize:11, color:C.faint, marginTop:10 }}>Everything saved locally in your browser.</p>
         </div>
+      </Card>
+    </div>
+  )
+}
+
+function SettingsTab({ profile, onProfileSaved }) {
+  const [data, setData] = useState({
+    name: profile?.name || '',
+    email: profile?.email || '',
+    phone: profile?.phone || '',
+    linkedin: profile?.linkedin || '',
+    portfolio: profile?.portfolio || '',
+  })
+  const [saved, setSaved] = useState(false)
+  const set = (k, v) => {
+    setSaved(false)
+    setData(d => ({ ...d, [k]: v }))
+  }
+  const canSave = data.name.trim() && data.email.trim()
+  const field = { width:'100%', border:`1px solid ${C.border}`, borderRadius:8, padding:'10px 14px', fontSize:14, fontFamily:"'DM Sans', sans-serif", background:C.surface, color:C.text, outline:'none', boxSizing:'border-box' }
+
+  function saveProfile() {
+    if (!canSave) return
+    onProfileSaved(data)
+    setSaved(true)
+  }
+
+  function clearAll() {
+    if (!window.confirm('This will clear all saved data and reload the app. Continue?')) return
+    localStorage.clear()
+    window.location.reload()
+  }
+
+  return (
+    <div>
+      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Settings <span style={{ color:C.cyan }}>✦</span></h1>
+      <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Update your profile details and manage local app data.</p>
+      <Card>
+        <div style={{ display:'flex', flexDirection:'column', gap:14 }}>
+          {[['name','Your name *',''],['email','Email *',''],['phone','Phone',''],['linkedin','LinkedIn URL','linkedin.com/in/yourname'],['portfolio','Portfolio URL','yoursite.com']].map(([k,l,ph]) => (
+            <div key={k}><Label>{l}</Label><input value={data[k]} onChange={e=>set(k,e.target.value)} placeholder={ph} style={field} /></div>
+          ))}
+        </div>
+        <div style={{ display:'flex', gap:12, marginTop:24, flexWrap:'wrap' }}>
+          <Btn primary onClick={saveProfile} disabled={!canSave}>Update profile</Btn>
+          <Btn onClick={clearAll} style={{ border:`1px solid rgba(155,35,53,0.25)`, color:C.red, background:C.redBg }}>Clear all data and start over</Btn>
+        </div>
+        {saved && <p style={{ fontSize:12, color:C.green, marginTop:12 }}>Profile updated.</p>}
       </Card>
     </div>
   )
@@ -394,19 +446,31 @@ export default function App() {
             <span style={{ fontSize:11, color:C.cyan, fontFamily:"'DM Mono', monospace" }}>✦ beta</span>
           </div>
           {profile && (
-            <nav style={{ display:'flex', gap:2 }}>
-              {NAV.map(t => (
-                <button key={t} onClick={() => { setTab(t); setDocView(null) }} style={{
-                  padding:'7px 14px', borderRadius:8, border:'none', cursor:'pointer',
-                  fontSize:13, fontWeight:500, fontFamily:"'DM Sans', sans-serif",
-                  background:tab===t?C.dark:'transparent', color:tab===t?'#fff':C.muted, transition:'all 0.15s',
-                }}>
-                  {t}
-                  {t==='History'&&history.length>0&&<span style={{ marginLeft:5, fontSize:10, background:C.cyanDim, color:C.cyan, padding:'1px 5px', borderRadius:10, fontFamily:'monospace' }}>{history.length}</span>}
-                  {t==='VoicePrint'&&!voiceProfile&&<span style={{ marginLeft:5, fontSize:10, background:C.amberBg, color:C.amber, padding:'1px 5px', borderRadius:10 }}>!</span>}
-                </button>
-              ))}
-            </nav>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <nav style={{ display:'flex', gap:2 }}>
+                {NAV.map(t => (
+                  <button key={t} onClick={() => { setTab(t); setDocView(null) }} style={{
+                    padding:'7px 14px', borderRadius:8, border:'none', cursor:'pointer',
+                    fontSize:13, fontWeight:500, fontFamily:"'DM Sans', sans-serif",
+                    background:tab===t?C.dark:'transparent', color:tab===t?'#fff':C.muted, transition:'all 0.15s',
+                  }}>
+                    {t}
+                    {t==='History'&&history.length>0&&<span style={{ marginLeft:5, fontSize:10, background:C.cyanDim, color:C.cyan, padding:'1px 5px', borderRadius:10, fontFamily:'monospace' }}>{history.length}</span>}
+                    {t==='VoicePrint'&&!voiceProfile&&<span style={{ marginLeft:5, fontSize:10, background:C.amberBg, color:C.amber, padding:'1px 5px', borderRadius:10 }}>!</span>}
+                  </button>
+                ))}
+              </nav>
+              <button
+                onClick={() => { setTab('Settings'); setDocView(null) }}
+                style={{
+                  background:'none', border:'none', cursor:'pointer', padding:'7px 10px',
+                  borderRadius:8, color:tab==='Settings'?C.text:C.muted, fontSize:13, fontWeight:500,
+                  fontFamily:"'DM Sans', sans-serif", textDecoration:'underline', textUnderlineOffset:2,
+                }}
+              >
+                Settings
+              </button>
+            </div>
           )}
         </div>
       </header>
@@ -436,6 +500,7 @@ export default function App() {
             )}
             {tab==='VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
             {tab==='History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
+            {tab==='Settings' && <SettingsTab profile={profile} onProfileSaved={onProfileSaved} />}
           </>
         )}
       </main>
@@ -462,10 +527,11 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       const userName = profile?.name || 'Candidate'
       const userContact = [profile?.email, profile?.phone].filter(Boolean).join(' | ')
       const userLinks = [profile?.linkedin, profile?.portfolio].filter(Boolean).join(' | ')
+      const bannedPhrases = voiceProfile?.bannedPhrases || ''
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,override), messages:[{ role:'user', content:'Analyze this job posting:\n\n'+jd }] }),
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,bannedPhrases,override), messages:[{ role:'user', content:'Analyze this job posting:\n\n'+jd }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
@@ -586,6 +652,7 @@ const VOICE_QUESTIONS = [
 function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
   const [step, setStep] = useState(voiceProfile?'done':'build')
   const [samples, setSamples] = useState('')
+  const [bannedPhrases, setBannedPhrases] = useState(voiceProfile?.bannedPhrases || '')
   const [answers, setAnswers] = useState({})
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
@@ -620,11 +687,11 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
       const answersText = VOICE_QUESTIONS.map(q=>q.label+'\nAnswer: '+answers[q.id]).join('\n\n')
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST', headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},
-        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:'Analyze this person\'s writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n'+answersText+'\n\nWRITING SAMPLES:\n'+samples.substring(0,2000)+'\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words they NEVER use (be specific — pull actual phrases from their writing to avoid), how they open and close. This banned list should reflect their actual voice, not generic AI advice.'}]}),
+        body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:600,messages:[{role:'user',content:'Analyze this person\'s writing voice. Create a guide for writing cover letters that sound exactly like them.\n\nQUESTIONNAIRE:\n'+answersText+'\n\nWRITING SAMPLES:\n'+samples.substring(0,2000)+'\n\nWrite a voice guide (150 words max): tone, sentence rhythm, words they use, words they NEVER use (be specific — pull actual phrases from their writing to avoid), how they open and close, and never use emojis in cover letters or outreach messages. This banned list should reflect their actual voice, not generic AI advice.'}]}),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data=await res.json()
-      onVoiceSaved({analysis:data.content.map(b=>b.text||'').join('').trim(),answers,resume})
+      onVoiceSaved({analysis:data.content.map(b=>b.text||'').join('').trim(),answers,resume,bannedPhrases})
       setStep('done')
     } catch(e) { setError(e.message) }
     finally { setLoading(false) }
@@ -689,6 +756,15 @@ function VoicePrintTab({ apiKey, keySaved, voiceProfile, onVoiceSaved }) {
         <Label>Writing samples</Label>
         <p style={{ fontSize:12, color:C.muted, marginBottom:10, lineHeight:1.6 }}>Paste 3–5 things you've written — emails, LinkedIn posts, messages. The more natural the better.</p>
         <TextArea value={samples} onChange={e=>setSamples(e.target.value)} rows={8} placeholder="Paste your writing samples here..." />
+      </div>
+      <div style={{ marginBottom:24 }}>
+        <Label>Phrases I never use (optional)</Label>
+        <input
+          value={bannedPhrases}
+          onChange={e => setBannedPhrases(e.target.value)}
+          placeholder="e.g. resonates with me, love this, speaks to me, circle back"
+          style={{ width:'100%', border:`1px solid ${C.border}`, borderRadius:10, padding:'10px 14px', fontSize:13, fontFamily:"'DM Sans', sans-serif", background:C.surface, color:C.text, outline:'none', boxSizing:'border-box' }}
+        />
       </div>
       <div style={{ marginBottom:24 }}>
         <Label>A few quick questions</Label>
