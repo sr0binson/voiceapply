@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useMemo } from 'react'
 import { jsPDF } from 'jspdf'
 
 const NAV = ['Analyze', 'Documents', 'VoicePrint', 'History']
@@ -85,27 +85,22 @@ function Dots() {
   )
 }
 
-function generateCoverLetterPDF(data) {
+function generateCoverLetterPDF(fullText) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 72, pageW = 612, contentW = pageW - margin * 2
   let y = margin
-  const addText = (text, opts = {}) => {
-    if (!text) return
-    const { size = 11, bold = false, color = [28,28,26], lineH = 16 } = opts
-    doc.setFontSize(size); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...color)
-    doc.splitTextToSize(text, contentW).forEach(line => { if (y > 720) { doc.addPage(); y = margin }; doc.text(line, margin, y); y += lineH })
+  const lineH = 16
+  const text = fullText || ''
+  doc.setFontSize(11); doc.setFont('helvetica', 'normal'); doc.setTextColor(28, 28, 26)
+  for (const line of text.split('\n')) {
+    if (line === '') { y += lineH * 0.5; continue }
+    doc.splitTextToSize(line, contentW).forEach(w => {
+      if (y > 720) { doc.addPage(); y = margin }
+      doc.text(w, margin, y); y += lineH
+    })
   }
-  const gap = (n = 12) => { y += n }
-  addText(data.name, { size: 18, bold: true, lineH: 22 }); gap(4)
-  doc.setFontSize(9.5); doc.setFont('helvetica', 'normal'); doc.setTextColor(100, 100, 96)
-  if (data.email || data.phone) { doc.text([data.email, data.phone].filter(Boolean).join('  |  '), margin, y); y += 13 }
-  if (data.linkedin || data.portfolio) { doc.text([data.linkedin, data.portfolio].filter(Boolean).join('  |  '), margin, y); y += 13 }
-  gap(4); doc.setDrawColor(200,200,196); doc.setLineWidth(0.5); doc.line(margin, y, pageW-margin, y); gap(18)
-  addText(data.date || new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}), { color:[80,80,76] }); gap(16)
-  addText(data.greeting || 'Dear Hiring Manager,'); gap(14)
-  ;[data.p1,data.p2,data.p3].filter(Boolean).forEach(p => { addText(p, { lineH: 17 }); gap(12) })
-  gap(4); addText('Best regards,'); gap(4); addText(data.name, { bold: true })
-  doc.save(`${(data.name||'Cover_Letter').replace(/\s+/g,'_')}_Cover_Letter.pdf`)
+  const firstLine = text.split('\n').find(l => l.trim()) || 'Cover_Letter'
+  doc.save(`${firstLine.replace(/\s+/g, '_').slice(0, 50)}_Cover_Letter.pdf`)
 }
 
 function generateResumePDF(data) {
@@ -280,68 +275,105 @@ function SettingsTab({ profile, onProfileSaved }) {
   )
 }
 
-function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile }) {
-  const parseFromText = (text) => {
-    if (!text) return { greeting:'Dear Hiring Manager,', p1:'', p2:'', p3:'', date:'' }
-    const lines = text.split('\n').map(l=>l.trim()).filter(Boolean)
-    const gi = lines.findIndex(l=>l.startsWith('Dear '))
-    const greeting = gi>=0 ? lines[gi] : 'Dear Hiring Manager,'
-    const body = gi>=0 ? lines.slice(gi+1) : lines
-    const si = body.findIndex(l=>l==='Best regards,'||l==='Sincerely,')
-    const paras = (si>=0?body.slice(0,si):body).join('\n').split(/\n{2,}/).map(p=>p.trim()).filter(Boolean)
-    const dm = text.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}/m)
-    return { date:dm?dm[0]:new Date().toLocaleDateString('en-US',{month:'long',day:'numeric',year:'numeric'}), greeting, p1:paras[0]||'', p2:paras[1]||'', p3:paras[2]||'' }
+function parseCoverLetterBody(text) {
+  if (!text) return { greeting: 'Dear Hiring Manager,', p1: '', p2: '', p3: '', date: '' }
+  const lines = text.split('\n').map(l => l.trim()).filter(Boolean)
+  const gi = lines.findIndex(l => l.startsWith('Dear '))
+  const greeting = gi >= 0 ? lines[gi] : 'Dear Hiring Manager,'
+  const body = gi >= 0 ? lines.slice(gi + 1) : lines
+  const si = body.findIndex(l => l === 'Best regards,' || l === 'Sincerely,')
+  const paras = (si >= 0 ? body.slice(0, si) : body).join('\n').split(/\n{2,}/).map(p => p.trim()).filter(Boolean)
+  const dm = text.match(/^(January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}/m)
+  return {
+    date: dm ? dm[0] : new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
+    greeting, p1: paras[0] || '', p2: paras[1] || '', p3: paras[2] || '',
   }
-  const parsed = parseFromText(coverLetter)
-  const [data, setData] = useState({
-    name:profile?.name||'', email:profile?.email||'', phone:profile?.phone||'',
-    linkedin:profile?.linkedin||'', portfolio:profile?.portfolio||'',
-    date:parsed.date, greeting:parsed.greeting, p1:parsed.p1, p2:parsed.p2, p3:parsed.p3,
-  })
-  const set = (k,v) => setData(d=>({...d,[k]:v}))
-  const fullText = [data.name, `${data.email}${data.phone?' | '+data.phone:''}`, `${data.linkedin}${data.portfolio?' | '+data.portfolio:''}`, '', data.date, '', data.greeting, '', data.p1, '', data.p2, '', data.p3, '', 'Best regards,', data.name].join('\n')
-  const field = { width:'100%', border:`1px solid ${C.border}`, borderRadius:8, padding:'8px 12px', fontSize:13, fontFamily:"'DM Sans', sans-serif", background:C.surface2, color:C.text, outline:'none', boxSizing:'border-box', lineHeight:1.6 }
+}
+
+function coverLetterEditorInitialFullText(coverLetter, profile) {
+  const raw = coverLetter || ''
+  const firstLine = raw.split('\n')[0]?.trim()
+  if (profile?.name && firstLine === profile.name.trim() && raw.includes('Dear ')) return raw
+  const { date, greeting, p1, p2, p3 } = parseCoverLetterBody(coverLetter)
+  const name = profile?.name || ''
+  const email = profile?.email || ''
+  const phone = profile?.phone || ''
+  const linkedin = profile?.linkedin || ''
+  const portfolio = profile?.portfolio || ''
+  return [
+    name,
+    `${email}${phone ? ' | ' + phone : ''}`,
+    `${linkedin}${portfolio ? ' | ' + portfolio : ''}`,
+    '',
+    date,
+    '',
+    greeting,
+    '',
+    p1,
+    '',
+    p2,
+    '',
+    p3,
+    '',
+    'Best regards,',
+    name,
+  ].join('\n')
+}
+
+function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile }) {
+  const initialFullText = useMemo(() => coverLetterEditorInitialFullText(coverLetter, profile), [coverLetter, profile])
+  const [data, setData] = useState({})
+  const fullText = data._raw !== undefined ? data._raw : initialFullText
+  const ta = {
+    width: '100%', minHeight: 420, boxSizing: 'border-box', display: 'block',
+    border: 'none', borderRadius: 0, padding: '16px 20px', margin: 0,
+    fontSize: 13, fontFamily: "'DM Sans', sans-serif", lineHeight: 1.8, color: C.text,
+    background: C.surface2, outline: 'none', resize: 'vertical',
+  }
   return (
-    <div style={{ marginTop:24 }}>
-      <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:20, flexWrap:'wrap', gap:10 }}>
-        <div>
-          <h2 style={{ fontSize:18, fontWeight:600, margin:0 }}>Cover letter editor</h2>
-          {jobTitle && <p style={{ fontSize:12, color:C.muted, margin:'4px 0 0' }}>{jobTitle} at {company}</p>}
-        </div>
-        <div style={{ display:'flex', gap:10 }}>
-          <CopyBtn text={fullText} />
-          <Btn small primary onClick={() => generateCoverLetterPDF(data)}>Download PDF →</Btn>
-          {onClose && <Btn small onClick={onClose}>← Back</Btn>}
-        </div>
-      </div>
-      <Card>
-        <div style={{ padding:16, borderRadius:10, background:C.surface2, border:`1px solid ${C.border}`, marginBottom:20 }}>
-          <div style={{ fontSize:16, fontWeight:700, marginBottom:4 }}>{data.name||'Your Name'}</div>
-          <div style={{ fontSize:11, color:C.muted }}>
-            {data.email && <a href={`mailto:${data.email}`} style={{ color:C.cyan }}>{data.email}</a>}
-            {data.email&&data.phone&&' | '}{data.phone}
+    <div style={{ marginTop: 24 }}>
+      <Card style={{ padding: 0, overflow: 'hidden' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 12, padding: '16px 20px', borderBottom: `1px solid ${C.border}` }}>
+          <div>
+            <h2 style={{ fontSize: 18, fontWeight: 600, margin: 0 }}>Cover letter</h2>
+            {jobTitle && <p style={{ fontSize: 12, color: C.muted, margin: '4px 0 0' }}>{jobTitle} at {company}</p>}
           </div>
-          <div style={{ fontSize:11, color:C.muted }}>
-            {data.linkedin && <a href={`https://${data.linkedin}`} target="_blank" rel="noreferrer" style={{ color:C.cyan }}>{data.linkedin}</a>}
-            {data.linkedin&&data.portfolio&&' | '}
-            {data.portfolio && <a href={`https://${data.portfolio}`} target="_blank" rel="noreferrer" style={{ color:C.cyan }}>{data.portfolio}</a>}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center' }}>
+            <CopyBtn text={fullText} />
+            <Btn small primary onClick={() => generateCoverLetterPDF(fullText)}>Download PDF →</Btn>
+            {onClose && <Btn small onClick={onClose}>← Back</Btn>}
           </div>
         </div>
-        <div style={{ marginBottom:14 }}><Label>Date</Label><input value={data.date} onChange={e=>set('date',e.target.value)} style={field} /></div>
-        <div style={{ marginBottom:14 }}><Label>Greeting</Label><input value={data.greeting} onChange={e=>set('greeting',e.target.value)} style={field} /></div>
-        {['p1','p2','p3'].map((k,i) => (
-          <div key={k} style={{ marginBottom:14 }}>
-            <Label>Paragraph {i+1}{i===0?' — opening':i===1?' — skills match':' — close'}</Label>
-            <textarea value={data[k]} onChange={e=>set(k,e.target.value)} rows={4} style={{ ...field, resize:'vertical' }} />
-          </div>
-        ))}
-        <div style={{ marginTop:8, padding:'12px 16px', background:C.surface2, borderRadius:8, fontSize:13, color:C.muted }}>
-          Best regards,<br /><span style={{ fontWeight:600, color:C.text }}>{data.name||'Your Name'}</span>
-        </div>
+        <textarea
+          value={fullText}
+          onChange={e => setData(d => ({ ...d, _raw: e.target.value }))}
+          rows={26}
+          spellCheck
+          style={ta}
+        />
       </Card>
-      <div style={{ marginTop:16 }}>
-        <Label>Preview</Label>
-        <div style={{ background:C.surface, border:`1px solid ${C.border}`, borderRadius:12, padding:28, fontSize:12, lineHeight:1.8, fontFamily:"'DM Sans', sans-serif", color:C.text, whiteSpace:'pre-wrap' }}>{fullText}</div>
+    </div>
+  )
+}
+
+function DocumentsTab({ onOpenCover, onOpenResume, lastWithCover }) {
+  return (
+    <div style={{ marginTop: 24 }}>
+      <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 4, fontFamily: "'Syne', 'DM Sans', sans-serif" }}>Documents <span style={{ color: C.cyan }}>▸</span></h1>
+      <p style={{ fontSize: 14, color: C.muted, marginBottom: 24, lineHeight: 1.6 }}>Edit your cover letter or resume for download and copy.</p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <Card>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Cover letter</div>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.55 }}>
+            {lastWithCover ? <>From your latest analysis: <strong style={{ color: C.text }}>{lastWithCover.jobTitle || 'Role'}</strong> at {lastWithCover.company || 'Company'}.</> : 'Run an analysis with a cover letter first, then you can edit it here.'}
+          </p>
+          <Btn primary small disabled={!lastWithCover} onClick={onOpenCover}>Open editor</Btn>
+        </Card>
+        <Card>
+          <div style={{ fontSize: 15, fontWeight: 600, marginBottom: 8 }}>Resume</div>
+          <p style={{ fontSize: 13, color: C.muted, marginBottom: 14, lineHeight: 1.55 }}>Build and export your resume PDF.</p>
+          <Btn primary small onClick={onOpenResume}>Open editor</Btn>
+        </Card>
       </div>
     </div>
   )
@@ -512,9 +544,9 @@ export default function App() {
             )}
             {tab==='Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
             {tab==='Documents' && (
-              docView==='cover' ? <CoverLetterEditor coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
+              docView==='cover' ? <CoverLetterEditor key={lastWithCover?.id ?? 'cover'} coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
               : docView==='resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
-              : <DocumentsTab history={history} onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} profile={profile} />
+              : <DocumentsTab onOpenCover={() => setDocView('cover')} onOpenResume={() => setDocView('resume')} lastWithCover={lastWithCover} />
             )}
             {tab==='VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
             {tab==='History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
@@ -610,32 +642,35 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         </>
       )}
       <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16, justifyContent:'flex-end' }}>
-        {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
-        <button
-          onClick={() => analyze(false)}
-          disabled={loading}
-          style={{
-            border:'none', cursor:loading?'not-allowed':'pointer', background:'transparent',
-            color:C.cyan, fontSize:44, fontWeight:700, lineHeight:1, opacity:loading?0.45:1,
-            fontFamily:"'DM Sans', sans-serif", display:'inline-flex', alignItems:'center', justifyContent:'center',
-            padding:0, textShadow:'0 3px 12px rgba(78,205,196,0.45)', transform:'translateY(-1px)',
-            transition:'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
-          }}
-          onMouseEnter={e => {
-            if (loading) return
-            e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
-            e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
-          }}
-          onMouseLeave={e => {
-            e.currentTarget.style.transform = 'translateY(-1px)'
-            e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
-          }}
-          aria-label={loading ? 'Analyzing job' : 'Analyze job'}
-          title={loading ? 'Analyzing...' : 'Analyze'}
-        >
-          ▸
-        </button>
-      </div>
+  {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
+  {(jd || jobUrl) && !loading && (
+    <Btn small onClick={() => { setJd(''); setJobUrl(''); setCurrentResult(null); setError('') }}>Clear</Btn>
+  )}
+  <button
+    onClick={() => analyze(false)}
+    disabled={loading}
+    style={{
+      border:'none', cursor:loading?'not-allowed':'pointer', background:'transparent',
+      color:C.cyan, fontSize:44, fontWeight:700, lineHeight:1, opacity:loading?0.45:1,
+      fontFamily:"'DM Sans', sans-serif", display:'inline-flex', alignItems:'center', justifyContent:'center',
+      padding:0, textShadow:'0 3px 12px rgba(78,205,196,0.45)', transform:'translateY(-1px)',
+      transition:'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
+    }}
+    onMouseEnter={e => {
+      if (loading) return
+      e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
+      e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
+    }}
+    onMouseLeave={e => {
+      e.currentTarget.style.transform = 'translateY(-1px)'
+      e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
+    }}
+    aria-label={loading ? 'Analyzing job' : 'Analyze job'}
+    title={loading ? 'Analyzing...' : 'Analyze'}
+  >
+    ▸
+  </button>
+</div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
       {currentResult && <ResultCard result={currentResult} onOverride={() => analyze(true)} apiKey={apiKey} />}
     </div>
@@ -645,64 +680,176 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
 function ResultCard({ result:r, onOverride, apiKey }) {
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
-  const projectPromptFallback = r.projectIdea
-    ? `Help me build this portfolio project for a ${r.jobTitle || 'target role'} role:\n\n${r.projectIdea}\n\nGive me:\n1) A practical plan with milestones\n2) Recommended tools (including AI/automation tools)\n3) A simple architecture + feature scope for v1\n4) A 1-week execution checklist\n5) Resume bullet points and interview talking points from this project`
-    : ''
-  const projectAIPromptText = (r.projectAIPrompt && r.projectAIPrompt.trim()) ? r.projectAIPrompt.trim() : projectPromptFallback
-  const [projectRunLoading, setProjectRunLoading] = useState(false)
-  const [projectRunError, setProjectRunError] = useState('')
-  const [projectRunResult, setProjectRunResult] = useState('')
-  const [showProjectOptions, setShowProjectOptions] = useState(false)
-  const [selectedProjectMode, setSelectedProjectMode] = useState('')
 
-  const projectBuildModes = [
-    { id:'mvp', label:'Fast MVP plan' },
-    { id:'tools', label:'AI + tool stack' },
-    { id:'steps', label:'Step-by-step build' },
-    { id:'portfolio', label:'Portfolio-ready delivery' },
-  ]
+  const [panelOpen, setPanelOpen] = useState(false)
+  const [chatMessages, setChatMessages] = useState([])
+  const [chatInput, setChatInput] = useState('')
+  const [chatLoading, setChatLoading] = useState(false)
+  const [chatError, setChatError] = useState('')
+  const chatBottomRef = useRef(null)
 
-  const modePromptMap = {
-    mvp: 'Give me a fast MVP plan I can execute quickly (scope, milestones, and must-have features only).',
-    tools: 'Recommend the best digital tools for this build, including AI and automation tools, and explain why each is useful.',
-    steps: 'Break this into clear build steps with practical implementation guidance for each step.',
-    portfolio: 'Show how to shape this into a strong portfolio piece with measurable outcomes and interview talking points.',
+  function closePanel() {
+    setPanelOpen(false)
+    setChatMessages([])
+    setChatInput('')
+    setChatError('')
   }
 
-  async function runProjectPrompt(modeId) {
-    if (!apiKey || !projectAIPromptText) return
-    const modeInstruction = modePromptMap[modeId] || modePromptMap.mvp
-    const runPrompt =
-      `Project suggestion:\n${r.projectIdea || ''}\n\n` +
-      `${modeInstruction}\n\n` +
-      `Context prompt:\n${projectAIPromptText}`
+  function renderMessage(text) {
+    const lines = text.split('\n')
+    return lines.map((line, i) => {
+      if (line.startsWith('```')) return null
+      const parts = line.split(/(`[^`]+`|\*\*[^*]+\*\*)/)
+      return (
+        <div key={i} style={{ marginBottom: line === '' ? 6 : 2 }}>
+          {parts.map((part, j) => {
+            if (part.startsWith('**') && part.endsWith('**'))
+              return <strong key={j}>{part.slice(2,-2)}</strong>
+            if (part.startsWith('`') && part.endsWith('`'))
+              return <code key={j} style={{ background:C.surface2, padding:'1px 5px', borderRadius:4, fontFamily:"'DM Mono', monospace", fontSize:11 }}>{part.slice(1,-1)}</code>
+            return <span key={j}>{part}</span>
+          })}
+        </div>
+      )
+    })
+  }
 
-    setProjectRunLoading(true)
-    setProjectRunError('')
-    setSelectedProjectMode(modeId)
+  async function sendMessage(userText, options) {
+    if (!apiKey) return
+    const userMsg = { role:'user', content: userText }
+    const updated = [...chatMessages, userMsg]
+    setChatMessages(updated)
+    setChatInput('')
+    setChatLoading(true)
+    setChatError('')
     try {
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
         body:JSON.stringify({
-          model:'claude-sonnet-4-20250514',
-          max_tokens:1200,
-          system:'You are a practical project coach. Give concise, actionable steps, concrete tool recommendations, and implementation details suitable for shipping quickly.',
-          messages:[{ role:'user', content:runPrompt }],
+          model:'claude-haiku-4-5-20251001',
+          max_tokens:800,
+          system:
+            'You are a practical project coach helping a job seeker build a portfolio project to close skill gaps for a specific job.\n' +
+            'Job title: ' + (r.jobTitle||'unknown') + '\n' +
+            'Project idea: ' + (r.projectIdea||'not specified') + '\n' +
+            'Skill gaps to close: ' + (r.missingSkills?.join(', ')||'none listed') + '\n\n' +
+            'Rules:\n' +
+            '- Be conversational and concise. No walls of text.\n' +
+            '- Ask one question at a time.\n' +
+            '- When recommending a tool, include a direct URL to sign up or get started.\n' +
+            '- Write code when helpful, in code blocks using backticks.\n' +
+            '- Use **bold** for section headers or key terms.\n' +
+            '- Keep responses under 200 words unless writing a full plan or code.\n' +
+            '- Never use buzzwords or filler phrases.\n' +
+            '- When you ask a question that has clear choices, end your message with OPTIONS: followed by 2-3 comma-separated options on the same line. Example: OPTIONS: Beginner,Some experience,Just need a refresher',
+          messages: updated.map(m => ({ role:m.role, content:m.content })),
         }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
-      setProjectRunResult(data.content.map(b=>b.text||'').join('').trim())
-      setShowProjectOptions(false)
-    } catch (e) {
-      setProjectRunError(e.message || 'Could not run AI prompt.')
+      const reply = data.content.map(b=>b.text||'').join('').trim()
+      const optionsMatch = reply.match(/OPTIONS:\s*(.+)$/m)
+      const opts = optionsMatch ? optionsMatch[1].split(',').map(s=>s.trim()) : []
+      const cleanReply = reply.replace(/OPTIONS:\s*.+$/m, '').trim()
+      setChatMessages(prev => [...prev, { role:'assistant', content:cleanReply, options:opts }])
+    } catch(e) {
+      setChatError(e.message||'Something went wrong.')
     } finally {
-      setProjectRunLoading(false)
+      setChatLoading(false)
+      setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior:'smooth' }), 100)
     }
   }
+
+  async function openPanel() {
+    if (!apiKey) return
+    setPanelOpen(true)
+    setChatMessages([])
+    setChatLoading(true)
+    setChatError('')
+    const gaps = r.missingSkills?.join(', ') || 'the skill gaps for this role'
+    const opening =
+      'I can help you build this project step by step so you have something real to show ' +
+      (r.jobTitle ? 'for the ' + r.jobTitle + ' role' : 'a hiring manager') + '.\n\n' +
+      'First — how comfortable are you with ' + gaps + ' right now?\n\nOPTIONS: Beginner,Some experience,Just need a refresher'
+    setChatMessages([{ role:'assistant', content: opening.replace(/OPTIONS:\s*.+$/m,'').trim(), options:['Beginner','Some experience','Just need a refresher'] }])
+    setChatLoading(false)
+  }
+
   return (
     <div style={{ marginTop:32 }}>
+      {panelOpen && (
+        <div
+          onClick={closePanel}
+          style={{ position:'fixed', inset:0, background:'rgba(0,0,0,0.15)', zIndex:999 }}
+        />
+      )}
+      {panelOpen && (
+        <div style={{
+          position:'fixed', top:0, right:0, width:420, height:'100vh',
+          background:C.surface, borderLeft:`1px solid ${C.border}`,
+          zIndex:1000, display:'flex', flexDirection:'column',
+          boxShadow:'-4px 0 24px rgba(0,0,0,0.08)',
+          fontFamily:"'DM Sans', sans-serif",
+        }}>
+          <div style={{ padding:'16px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', alignItems:'center', justifyContent:'space-between', flexShrink:0 }}>
+            <div>
+              <div style={{ fontSize:14, fontWeight:600 }}>Project Builder</div>
+              <div style={{ fontSize:11, color:C.muted, marginTop:2 }}>{r.jobTitle||'Role'}</div>
+            </div>
+            <button onClick={closePanel} style={{ background:'none', border:'none', cursor:'pointer', fontSize:20, color:C.muted, lineHeight:1, padding:4 }}>×</button>
+          </div>
+          <div style={{ flex:1, overflowY:'auto', padding:16, display:'flex', flexDirection:'column', gap:12 }}>
+            {chatMessages.map((msg, i) => (
+              <div key={i} style={{ display:'flex', flexDirection:'column', alignItems:msg.role==='user'?'flex-end':'flex-start' }}>
+                <div style={{
+                  maxWidth:'85%', padding:'10px 14px', borderRadius:12,
+                  background:msg.role==='user'?C.cyanDim:C.surface2,
+                  border:`1px solid ${msg.role==='user'?C.cyanBorder:C.border}`,
+                  fontSize:13, lineHeight:1.6, color:C.text,
+                }}>
+                  {renderMessage(msg.content)}
+                </div>
+                {msg.options?.length>0 && (
+                  <div style={{ display:'flex', flexWrap:'wrap', gap:6, marginTop:6 }}>
+                    {msg.options.map(opt => (
+                      <button key={opt} onClick={() => sendMessage(opt)}
+                        style={{ fontSize:12, padding:'5px 12px', borderRadius:20, border:`1px solid ${C.border}`, background:C.surface, color:C.text, cursor:'pointer', fontFamily:"'DM Sans', sans-serif' " }}>
+                        {opt}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+            {chatLoading && (
+              <div style={{ display:'flex', alignItems:'flex-start' }}>
+                <div style={{ padding:'10px 14px', borderRadius:12, background:C.surface2, border:`1px solid ${C.border}` }}>
+                  <Dots />
+                </div>
+              </div>
+            )}
+            {chatError && <div style={{ fontSize:12, color:C.red, padding:'8px 12px', background:C.redBg, borderRadius:8 }}>{chatError}</div>}
+            <div ref={chatBottomRef} />
+          </div>
+          <div style={{ padding:'12px 16px', borderTop:`1px solid ${C.border}`, display:'flex', gap:8, flexShrink:0 }}>
+            <input
+              value={chatInput}
+              onChange={e => setChatInput(e.target.value)}
+              onKeyDown={e => e.key==='Enter' && chatInput.trim() && !chatLoading && sendMessage(chatInput)}
+              placeholder="Ask anything about this project..."
+              style={{ flex:1, border:`1px solid ${C.border}`, borderRadius:8, padding:'8px 12px', fontSize:13, fontFamily:"'DM Sans', sans-serif", background:C.surface2, color:C.text, outline:'none' }}
+            />
+            <button
+              onClick={() => chatInput.trim() && !chatLoading && sendMessage(chatInput)}
+              disabled={chatLoading || !chatInput.trim()}
+              style={{ padding:'8px 14px', borderRadius:8, border:'none', background:C.dark, color:'#fff', cursor:chatLoading||!chatInput.trim()?'not-allowed':'pointer', opacity:chatLoading||!chatInput.trim()?0.45:1, fontSize:13, fontFamily:"'DM Sans', sans-serif" }}
+            >
+              ▸
+            </button>
+          </div>
+        </div>
+      )}
       <Card>
         <div style={{ display:'flex', alignItems:'flex-start', gap:20, marginBottom:16 }}>
           <span style={{ fontSize:48, fontWeight:300, fontFamily:"'DM Mono', monospace", color:scoreColor, lineHeight:1 }}>{r.score}%</span>
@@ -736,37 +883,13 @@ function ResultCard({ result:r, onOverride, apiKey }) {
           <div style={{ marginBottom:16, padding:'10px 12px', borderRadius:12, background:C.greenBg, border:'1px solid rgba(45,106,79,0.22)' }}>
             <div style={{ fontSize:11, fontWeight:600, color:C.green, textTransform:'uppercase', letterSpacing:'0.07em', marginBottom:6 }}>Project suggestion</div>
             <div style={{ fontSize:12, color:C.text, lineHeight:1.55 }}>{r.projectIdea}</div>
-            {projectAIPromptText && (
-              <div style={{ marginTop:10, padding:'10px 12px', borderRadius:10, background:C.surface, border:`1px solid ${C.border}` }}>
-                <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:10, flexWrap:'wrap' }}>
-                  <div />
-                  <button
-                    onClick={() => setShowProjectOptions(v => !v)}
-                    disabled={projectRunLoading || !apiKey}
-                    style={{ fontSize:12, lineHeight:1, padding:0, border:'none', background:'transparent', color:C.text, cursor:(projectRunLoading || !apiKey)?'not-allowed':'pointer', fontFamily:"'DM Sans', sans-serif", opacity:(projectRunLoading || !apiKey)?0.6:1, display:'inline-flex', alignItems:'center', gap:4, fontWeight:600 }}
-                    title="Choose AI build mode"
-                  >
-                    AI <span style={{ color:C.cyan, fontSize:13 }}>{projectRunLoading ? '…' : '▸'}</span>
-                  </button>
-                </div>
-                {showProjectOptions && !projectRunLoading && (
-                  <div style={{ marginTop:8, display:'flex', flexWrap:'wrap', gap:8 }}>
-                    {projectBuildModes.map(mode => (
-                      <button
-                        key={mode.id}
-                        onClick={() => runProjectPrompt(mode.id)}
-                        style={{ fontSize:11, padding:'5px 9px', borderRadius:20, border:`1px solid ${C.border}`, background:C.surface2, color:C.muted, cursor:'pointer', fontFamily:"'DM Sans', sans-serif" }}
-                      >
-                        {mode.label}
-                      </button>
-                    ))}
-                  </div>
-                )}
-                {projectRunError && <div style={{ marginTop:8, fontSize:12, color:C.red }}>{projectRunError}</div>}
-                {projectRunLoading && <div style={{ marginTop:8, fontSize:12, color:C.muted }}>Running AI for {projectBuildModes.find(m => m.id===selectedProjectMode)?.label || 'project plan'}...</div>}
-                {projectRunResult && <div style={{ marginTop:8, fontSize:12, color:C.text, lineHeight:1.6, whiteSpace:'pre-wrap' }}>{projectRunResult}</div>}
-              </div>
-            )}
+            <button
+              onClick={openPanel}
+              disabled={!apiKey}
+              style={{ marginTop:10, fontSize:12, padding:'5px 14px', borderRadius:20, border:`1px solid ${C.cyanBorder}`, background:C.cyanDim, color:C.cyan, cursor:!apiKey?'not-allowed':'pointer', fontFamily:"'DM Sans', sans-serif", fontWeight:600, opacity:!apiKey?0.5:1, display:'inline-flex', alignItems:'center', gap:4 }}
+            >
+              Build this <span style={{ fontSize:13 }}>▸</span>
+            </button>
           </div>
         )}
         <div style={{ marginTop:8 }}>
@@ -774,44 +897,6 @@ function ResultCard({ result:r, onOverride, apiKey }) {
           {r.outreachMessage && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
         </div>
       </Card>
-    </div>
-  )
-}
-
-function DocumentsTab({ history, onOpenCover, onOpenResume, lastWithCover, profile }) {
-  const applyThreshold = Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85
-  return (
-    <div>
-      <h1 style={{ fontSize:26, fontWeight:600, letterSpacing:'-0.02em', marginBottom:4 }}>Documents <span style={{ color:C.cyan }}>▸</span></h1>
-      <p style={{ fontSize:14, color:C.muted, marginBottom:28 }}>Edit, download, and copy your cover letter and resume.</p>
-      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:16, marginBottom:32 }}>
-        <Card style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:13, fontWeight:600 }}>Cover letter</div>
-          <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, flex:1 }}>{lastWithCover?`Last: ${lastWithCover.jobTitle} at ${lastWithCover.company}`:`No cover letter yet. Analyze a job that scores ${applyThreshold}%+ first.`}</div>
-          <Btn primary small onClick={onOpenCover} disabled={!lastWithCover}>Open editor →</Btn>
-        </Card>
-        <Card style={{ display:'flex', flexDirection:'column', gap:12 }}>
-          <div style={{ fontSize:13, fontWeight:600 }}>Resume</div>
-          <div style={{ fontSize:12, color:C.muted, lineHeight:1.6, flex:1 }}>Edit sections, update content, and download a clean PDF.</div>
-          <Btn primary small onClick={onOpenResume}>Open editor →</Btn>
-        </Card>
-      </div>
-      {history.filter(r=>r.coverLetter).length>0 && (
-        <div>
-          <Label>Cover letter history</Label>
-          <Card style={{ padding:0, overflow:'hidden' }}>
-            {history.filter(r=>r.coverLetter).map((r,i,arr) => (
-              <div key={r.id||i} style={{ padding:'14px 20px', borderBottom:i<arr.length-1?`1px solid ${C.border}`:'none', display:'flex', alignItems:'center', justifyContent:'space-between' }}>
-                <div>
-                  <div style={{ fontSize:13, fontWeight:500 }}>{r.jobTitle} at {r.company}</div>
-                  <div style={{ fontSize:11, color:C.faint, marginTop:2 }}>{r.timestamp}</div>
-                </div>
-                <CopyBtn text={r.coverLetter} />
-              </div>
-            ))}
-          </Card>
-        </div>
-      )}
     </div>
   )
 }
