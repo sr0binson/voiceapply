@@ -156,7 +156,7 @@ function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, u
   const threshold = Number.isFinite(Number(applyThreshold)) ? Math.max(0, Math.min(100, Number(applyThreshold))) : 85
   const scoringRules = override
     ? 'OVERRIDE MODE: User has chosen to apply regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what. Still provide an honest score and verdict but always include all outputs.'
-    : `SCORING: 0-100. ${threshold}+=APPLY+full output. <${threshold}=SKIP+no cover letter unless obvious SCAM.\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
+    : `SCORING: 0-100. ${threshold}+=APPLY+full output (include coverLetter and outreachMessage). <${threshold}=SKIP: verdict SKIP, set coverLetter to "" and outreachMessage to "" (no draft apply materials). Verdict SCAM: set coverLetter and outreachMessage to "".\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
 
   return 'You are a job match analyzer and cover letter writer.\n' +
     resumeSection + '\n' +
@@ -592,7 +592,8 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
-      onResult(JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim()))
+      const parsed = JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim())
+      onResult({ ...parsed, applyAnyway: !!override })
     } catch(e) { setError(e.message) }
     finally { clearInterval(interval); setLoading(false) }
   }
@@ -672,12 +673,22 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
   </button>
 </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
-      {currentResult && <ResultCard result={currentResult} onOverride={() => analyze(true)} apiKey={apiKey} />}
+      {currentResult && (
+        <ResultCard
+          result={currentResult}
+          onOverride={() => analyze(true)}
+          apiKey={apiKey}
+          matchThreshold={Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85}
+        />
+      )}
     </div>
   )
 }
 
-function ResultCard({ result:r, onOverride, apiKey }) {
+function ResultCard({ result:r, onOverride, apiKey, matchThreshold }) {
+  const th = Number.isFinite(Number(matchThreshold)) ? Math.max(0, Math.min(100, Number(matchThreshold))) : 85
+  const scoreN = Number(r.score)
+  const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && (r.applyAnyway === true || (Number.isFinite(scoreN) && scoreN >= th))
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
 
@@ -993,7 +1004,7 @@ function ResultCard({ result:r, onOverride, apiKey }) {
         )}
         <div style={{ marginTop:8 }}>
           {r.coverLetter && <Accordion title="Cover letter"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.coverLetter}</pre><CopyBtn text={r.coverLetter} /></Accordion>}
-          {r.outreachMessage && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
+          {showOutreach && <Accordion title="Outreach message"><pre style={{ whiteSpace:'pre-wrap', fontSize:13, lineHeight:1.75, fontFamily:"'DM Sans', sans-serif", color:C.text }}>{r.outreachMessage}</pre><CopyBtn text={r.outreachMessage} /></Accordion>}
         </div>
       </Card>
     </div>
