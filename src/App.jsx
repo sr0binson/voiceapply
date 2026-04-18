@@ -29,6 +29,8 @@ const C = {
   connectPanelBorder: 'rgba(122,95,60,0.24)',
   connectPanelTitle: '#5c4a26',
   kitResumeBg: '#faf9f7',
+  /** Edit textarea in myResume+ tailored resume — same greige family as kitResumeBg, one step lighter */
+  kitResumeTextareaBg: '#fdfcfa',
   kitCoverBg: '#f3f1ed',
   /** Tailored resume header: name row always larger than headline row (px-locked in UI) */
   resumeName: '#0a0a09',
@@ -1253,7 +1255,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                           sessionStorage.setItem(storageKey, v)
                         } catch { /* ignore */ }
                       }}
-                      greigeBg={C.kitResumeBg}
+                      greigeBg={C.kitResumeTextareaBg}
                     />
                     {!sourceResume && (
                       <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
