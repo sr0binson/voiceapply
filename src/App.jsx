@@ -281,6 +281,24 @@ function stripResumeHeaderLabel(line) {
     .trim()
 }
 
+/** `-` / `*` bullets need a space so we do not treat hyphenated words as bullets; •/▪ often touch text. */
+function lineLooksLikeResumeBulletLine(s) {
+  const t = String(s || '').trim()
+  if (!t) return false
+  if (/^[-*]\s+/.test(t)) return true
+  if (/^[•▪]\s*/.test(t)) return true
+  if (/^\d+[.)]\s*/.test(t)) return true
+  return false
+}
+
+function stripResumeBulletPrefix(t) {
+  return String(t || '')
+    .trim()
+    .replace(/^[-*]\s+/, '')
+    .replace(/^[•▪]\s*/, '')
+    .replace(/^\d+[.)]\s*/, '')
+}
+
 /** Classify a single contact fragment for strict display order. */
 function classifyContactSegment(seg) {
   const s = String(seg || '').trim()
@@ -444,7 +462,24 @@ function linkifyContactLine(text) {
 /** Name = 20px; headline = 12px — separate style objects; wrapper must not set fontSize (avoids inheritance issues). */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => stripResumeHeaderLabel(String(l).trim())).filter(Boolean)
-  if (!lines.length) return null
+  if (!lines.length) {
+    const raw = paraLines.map(l => String(l).trim()).filter(Boolean).join('\n')
+    if (!raw) return null
+    return (
+      <p
+        style={{
+          margin: '0 0 14px',
+          maxWidth: '100%',
+          fontSize: 11.5,
+          lineHeight: 1.48,
+          color: C.resumeBody,
+          whiteSpace: 'pre-line',
+        }}
+      >
+        {raw}
+      </p>
+    )
+  }
   const contactBlock = (raw) => {
     const joined = orderContactLineForDisplay(raw)
     return (
@@ -690,9 +725,9 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
       i++
       continue
     }
-    const isBullet = /^[-*•▪]\s/.test(trimmed) || /^\d+[.)]\s/.test(trimmed)
+    const isBullet = lineLooksLikeResumeBulletLine(trimmed)
     if (isBullet) {
-      const bulletText = trimmed.replace(/^[-*•▪]\s*/, '').replace(/^\d+[.)]\s+/, '')
+      const bulletText = stripResumeBulletPrefix(trimmed)
       bulletBuf.push(bulletText)
       i++
       continue
@@ -723,6 +758,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
           {trimmed}
         </div>,
       )
+      isFirstContactBlock = false
       i++
       continue
     }
@@ -731,8 +767,13 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     while (i < lines.length) {
       const t = lines[i].trim()
       if (!t) break
-      if (/^[-*•▪]\s/.test(t) || /^\d+[.)]\s/.test(t)) break
-      if (resumeLineLooksSection(t)) break
+      if (lineLooksLikeResumeBulletLine(t)) break
+      if (
+        resumeLineLooksSection(t) &&
+        (!isFirstContactBlock || lineLooksLikeKnownResumeSectionTitle(t))
+      ) {
+        break
+      }
       paraLines.push(t)
       i++
     }
@@ -762,23 +803,40 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     isFirstContactBlock = false
   }
   flushBullets()
+  const articleStyle = {
+    padding: '28px 32px 24px',
+    background: paperBg,
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    boxSizing: 'border-box',
+    width: '100%',
+    maxWidth: 'min(100%, 680px)',
+    margin: '0 auto',
+    overflowX: 'auto',
+    fontFamily: "'DM Sans', sans-serif",
+    textAlign: 'left',
+    color: C.resumeBody,
+  }
+  if (!nodes.length && body) {
+    return (
+      <article style={articleStyle}>
+        <p
+          style={{
+            margin: '0 auto 10px',
+            maxWidth: '100%',
+            fontSize: 11.5,
+            lineHeight: 1.48,
+            color: C.resumeBody,
+            whiteSpace: 'pre-line',
+          }}
+        >
+          {body}
+        </p>
+      </article>
+    )
+  }
   return (
-    <article
-      style={{
-        padding: '28px 32px 24px',
-        background: paperBg,
-        border: `1px solid ${C.border}`,
-        borderRadius: 10,
-        boxSizing: 'border-box',
-        width: '100%',
-        maxWidth: 'min(100%, 680px)',
-        margin: '0 auto',
-        overflowX: 'auto',
-        fontFamily: "'DM Sans', sans-serif",
-        textAlign: 'left',
-        color: C.resumeBody,
-      }}
-    >
+    <article style={articleStyle}>
       {nodes}
     </article>
   )
@@ -793,6 +851,25 @@ function collapsibleChevronStyle(open) {
     transition: 'transform 0.2s ease',
     transformOrigin: 'center',
   }
+}
+
+/** Plain assistant text from Anthropic Messages API (multiple block shapes / thinking blocks). */
+function anthropicMessageText(data) {
+  const raw = data?.content ?? data?.message?.content
+  if (typeof raw === 'string') return raw
+  if (!Array.isArray(raw)) return ''
+  let out = ''
+  for (const block of raw) {
+    if (block == null) continue
+    if (typeof block.text === 'string') {
+      out += block.text
+      continue
+    }
+    if (block.type === 'text' && typeof block.text === 'string') {
+      out += block.text
+    }
+  }
+  return out
 }
 
 function kitFetchMessages(apiKey, system, userContent, maxTokens = 3500) {
@@ -986,7 +1063,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         throw new Error(e.error?.message || 'API error ' + res.status)
       }
       const data = await res.json()
-      const text = data.content.map(b => b.text || '').join('').trim()
+      const text = anthropicMessageText(data).trim()
       setTailored(text)
       try {
         sessionStorage.setItem(storageKey, text)
@@ -1030,7 +1107,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
           throw new Error(e.error?.message || 'API error ' + res.status)
         }
         const data = await res.json()
-        setCoverText(data.content.map(b => b.text || '').join('').trim())
+        setCoverText(anthropicMessageText(data).trim())
       } catch (e) {
         setCoverErr(e.message || 'Something went wrong.')
       } finally {
@@ -1070,7 +1147,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
           throw new Error(e.error?.message || 'API error ' + res.status)
         }
         const data = await res.json()
-        setConnectText(data.content.map(b => b.text || '').join('').trim())
+        setConnectText(anthropicMessageText(data).trim())
       } catch (e) {
         setConnectErr(e.message || 'Something went wrong.')
       } finally {
