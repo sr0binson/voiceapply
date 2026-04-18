@@ -957,12 +957,11 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
-        '- Header (before SUMMARY): The very first line of the entire resume must be the candidate\'s full name and nothing else. The second line must be the professional headline only. Do not put the headline before the name under any circumstances. CRITICAL: Line 1 = full name only (e.g. Stacy Robinson). Line 2 = professional headline (e.g. IT Support Technician | Device Management | CompTIA A+ Candidate). Never swap these. Never put the headline first. Use | between headline phrases. Last line of the header block = contact only in this exact order: location, phone, email, LinkedIn URL, portfolio URL (if present). Do not insert a blank line between name, headline, and contact — a blank after line 2 splits the header and breaks the layout.\n' +
-        '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, SKILLS, EXPERIENCE, PROJECTS, EDUCATION & CERTIFICATIONS.\n' +
-        '- EXPERIENCE: For each role, line 1 = job title (bold in UI) then TWO OR MORE spaces (or a tab) then the date range (e.g. March 2021 – Present). Line 2 = Company — Location (plain). Then bullet lines with "- " for achievements. Repeat for each job.\n' +
-        '- Aim for one page for entry-level / early-career: concise bullets, tight wording.\n' +
-        '- Blank line between sections. In SKILLS, one skill per "- " line (short phrase).\n' +
-        '- No emoji, tables, or decorative characters.\n' +
+        '- Header: Output the header block using exactly these labeled lines, in this order:\n' +
+        '  NAME: [candidate full name]\n' +
+        '  HEADLINE: [professional headline with | between phrases]\n' +
+        '  CONTACT: [location • phone • email • linkedin url • portfolio url]\n' +
+        '- Do not add blank lines between these three lines. Do not add any other lines to the header block.\n' +
         'Return ONLY the resume text.'
 
       const res = await kitFetchMessages(
