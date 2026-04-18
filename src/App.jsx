@@ -382,9 +382,25 @@ function TailoredResumeFirstHeader({ paraLines }) {
       </div>
     )
   }
-  const name = lines[0]
   const contactLine = lines[lines.length - 1]
-  const headline = normalizeHeadlineDisplay(lines.slice(1, -1).join(' | '))
+  /** If line 1 looks like titles (pipes) and line 2 like a person name, model order is headline → name → contact. */
+  const headlineLineFirst = (a, b) => {
+    const pa = (String(a).match(/\|/g) || []).length
+    const pb = (String(b).match(/\|/g) || []).length
+    if (pa >= 1 && pb === 0) return true
+    if (pa > pb && String(a).length > String(b).length + 8) return true
+    return false
+  }
+  let name
+  let headlineRaw
+  if (lines.length === 3 && headlineLineFirst(lines[0], lines[1])) {
+    name = lines[1]
+    headlineRaw = lines[0]
+  } else {
+    name = lines[0]
+    headlineRaw = lines.slice(1, -1).join(' | ')
+  }
+  const headline = normalizeHeadlineDisplay(headlineRaw)
   return (
     <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left' }}>
       <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div>
