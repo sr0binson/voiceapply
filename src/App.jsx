@@ -334,6 +334,16 @@ function resolveNameHeadlineSlots(innerLines) {
   return { name, headlineParts }
 }
 
+/** If the resolver picked a piped line as "name", it's a headline — show headline styling only for that text. */
+function demotePipedNameToHeadline(name, headlineParts) {
+  const n = String(name || '').trim()
+  const parts = Array.isArray(headlineParts) ? [...headlineParts] : []
+  if (n.includes('|')) {
+    return { name: '', headlineParts: [n, ...parts] }
+  }
+  return { name: n, headlineParts: parts }
+}
+
 /** True if this line is clearly contact (email, URL, phone) — not a headline. */
 function lineLooksLikeContact(line) {
   const s = String(line || '').trim()
@@ -438,35 +448,37 @@ function TailoredResumeFirstHeader({ paraLines }) {
   if (lines.length === 2) {
     /** Blank line before contact → only 2 lines in block: often headline then name (not name+contact). */
     if (lineLooksLikeContact(lines[1])) {
-      console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', {
-        name: lines[0],
-        headlineParts: [],
-      })
+      let { name, headlineParts } = demotePipedNameToHeadline(lines[0], [])
+      console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', { name, headlineParts })
+      const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
       return (
         <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-          <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
+          {name ? <div style={{ ...nameStyle, marginBottom: headline ? 4 : 6 }}>{name}</div> : null}
+          {headline ? <div style={{ ...headlineStyle, marginBottom: 6 }}>{headline}</div> : null}
           {contactBlock(lines[1])}
         </div>
       )
     }
-    const { name, headlineParts } = resolveNameHeadlineSlots(lines)
+    let { name, headlineParts } = resolveNameHeadlineSlots(lines)
+    ;({ name, headlineParts } = demotePipedNameToHeadline(name, headlineParts))
     console.log('[TailoredResumeFirstHeader] 2-line (name + headline)', { name, headlineParts })
     const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
     return (
       <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-        <div style={{ ...nameStyle, marginBottom: headline ? 4 : 0 }}>{name}</div>
+        {name ? <div style={{ ...nameStyle, marginBottom: headline ? 4 : 0 }}>{name}</div> : null}
         {headline ? <div style={headlineStyle}>{headline}</div> : null}
       </div>
     )
   }
   const contactLine = lines[lines.length - 1]
   const inner = lines.slice(0, -1)
-  const { name, headlineParts } = resolveNameHeadlineSlots(inner)
+  let { name, headlineParts } = resolveNameHeadlineSlots(inner)
+  ;({ name, headlineParts } = demotePipedNameToHeadline(name, headlineParts))
   console.log('[TailoredResumeFirstHeader] 3+ line (name + headline + contact)', { name, headlineParts })
   const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
   return (
     <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left', fontSize: '12px' }}>
-      <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div>
+      {name ? <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div> : null}
       {headline ? <div style={headlineStyle}>{headline}</div> : null}
       {contactBlock(contactLine)}
     </div>
