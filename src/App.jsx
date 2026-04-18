@@ -1981,7 +1981,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           <Btn small onClick={() => setTab('VoicePrint')} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Set up →</Btn>
         </div>
       )}
-      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Job Analysis</h1>
+      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze</h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Paste a job description. Get your match score, cover letter, and outreach message.</p>
       <div style={{ marginBottom:14 }}>
         <Label>Mode</Label>
