@@ -214,6 +214,15 @@ function qualifiesForApplyLetterOutputs(r, matchThreshold) {
 
 const KIT_TAILORED_RESUME_PREFIX = 'va_kit_tailored_resume_'
 
+/** All-caps lines that are real section titles (not e.g. a person's name). */
+function lineLooksLikeKnownResumeSectionTitle(trimmed) {
+  const u = String(trimmed || '').toUpperCase()
+  return (
+    /\b(SUMMARY|PROFILE|OBJECTIVE|SKILLS|COMPETENCIES|EXPERIENCE|EMPLOYMENT|WORK HISTORY|PROJECTS?|EDUCATION|CERTIFICATIONS?|ACADEMIC|AWARDS?|PUBLICATIONS?|VOLUNTEER|REFERENCES)\b/.test(u) ||
+    /^(WORK EXPERIENCE|PROFESSIONAL EXPERIENCE|TECHNICAL SKILLS|CORE COMPETENCIES)$/i.test(trimmed)
+  )
+}
+
 function resumeLineLooksSection(trimmed) {
   return (
     trimmed.length >= 3 &&
@@ -263,13 +272,22 @@ function splitTitleAndDates(line) {
   return { title: t, dates: null }
 }
 
+/** Strip NAME:/HEADLINE:/CONTACT: prefixes from model output (one pass per line). */
+function stripResumeHeaderLabel(line) {
+  return String(line || '')
+    .replace(/^\s*NAME:\s*/i, '')
+    .replace(/^\s*HEADLINE:\s*/i, '')
+    .replace(/^\s*CONTACT:\s*/i, '')
+    .trim()
+}
+
 /** Classify a single contact fragment for strict display order. */
 function classifyContactSegment(seg) {
   const s = String(seg || '').trim()
   if (!s) return null
   if (/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(s)) return 'email'
+  if (/linkedin\.com/i.test(s)) return 'linkedin'
   if (/https?:\/\//i.test(s) || /^www\./i.test(s)) {
-    if (/linkedin\.com/i.test(s)) return 'linkedin'
     return 'portfolio'
   }
   if (/\d{3}[-.\s)]?\d{3}[-.\s]?\d{4}/.test(s) || /\(\d{3}\)\s*\d{3}/.test(s) || /\b\d{3}-\d{3}-\d{4}\b/.test(s)) return 'phone'
@@ -278,8 +296,8 @@ function classifyContactSegment(seg) {
 
 /** location → phone → email → LinkedIn → portfolio (other https after LinkedIn). */
 function orderContactLineForDisplay(raw) {
-  const s = Array.isArray(raw) ? raw.join(' | ') : String(raw || '')
-  const segments = s.split(/\s*[|•]\s*/).map(x => x.trim()).filter(Boolean)
+  const s = stripResumeHeaderLabel(Array.isArray(raw) ? raw.join(' | ') : String(raw || ''))
+  const segments = s.split(/\s*[|•]\s*/).map(x => stripResumeHeaderLabel(x)).map(x => x.trim()).filter(Boolean)
   const loc = []
   const phone = []
   const email = []
@@ -425,7 +443,7 @@ function linkifyContactLine(text) {
 
 /** Name = 20px; headline = 12px — separate style objects; wrapper must not set fontSize (avoids inheritance issues). */
 function TailoredResumeFirstHeader({ paraLines }) {
-  const lines = paraLines.map(l => l.trim()).filter(Boolean)
+  const lines = paraLines.map(l => stripResumeHeaderLabel(String(l).trim())).filter(Boolean)
   if (!lines.length) return null
   const contactBlock = (raw) => {
     const joined = orderContactLineForDisplay(raw)
@@ -450,6 +468,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
     lineHeight: 1.2,
     color: C.resumeName,
     letterSpacing: '-0.02em',
+    textTransform: 'none',
     margin: 0,
     padding: 0,
   }
@@ -679,7 +698,10 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
       continue
     }
     flushBullets()
-    if (resumeLineLooksSection(trimmed)) {
+    if (
+      resumeLineLooksSection(trimmed) &&
+      (!isFirstContactBlock || lineLooksLikeKnownResumeSectionTitle(trimmed))
+    ) {
       activeSectionId = resumeSectionId(trimmed)
       nodes.push(
         <div
