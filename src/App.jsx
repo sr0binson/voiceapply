@@ -1312,18 +1312,6 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                 aria-hidden="true"
               >▶</span>
             </button>
-            {allowApplyOutputs && (showCoverLetter || showOutreach) && (
-              <MyResumePlusSection
-                r={r}
-                voiceProfile={voiceProfile}
-                apiKey={apiKey}
-                keySaved={keySaved}
-                allowApplyOutputs={allowApplyOutputs}
-                showCoverLetter={showCoverLetter}
-                showOutreach={showOutreach}
-                embedded
-              />
-            )}
             {upskillOpen && (
               <div style={{ paddingBottom: 16, display: 'flex', flexDirection: 'column', gap: 14 }}>
                 {r.transferableNotes && (
@@ -1355,6 +1343,18 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                   </div>
                 )}
               </div>
+            )}
+            {allowApplyOutputs && (showCoverLetter || showOutreach) && (
+              <MyResumePlusSection
+                r={r}
+                voiceProfile={voiceProfile}
+                apiKey={apiKey}
+                keySaved={keySaved}
+                allowApplyOutputs={allowApplyOutputs}
+                showCoverLetter={showCoverLetter}
+                showOutreach={showOutreach}
+                embedded
+              />
             )}
           </div>
         )}
