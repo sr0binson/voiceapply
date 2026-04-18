@@ -213,6 +213,8 @@ function qualifiesForApplyLetterOutputs(r, matchThreshold) {
 }
 
 const KIT_TAILORED_RESUME_PREFIX = 'va_kit_tailored_resume_'
+/** Faster model for myResume+ (tailored resume / cover / connect) — Sonnet was timing out for many users. */
+const KIT_MESSAGES_MODEL = 'claude-haiku-4-5-20251001'
 
 /** All-caps lines that are real section titles (not e.g. a person's name). */
 function lineLooksLikeKnownResumeSectionTitle(trimmed) {
@@ -872,7 +874,7 @@ function anthropicMessageText(data) {
   return out
 }
 
-function kitFetchMessages(apiKey, system, userContent, maxTokens = 3500) {
+function kitFetchMessages(apiKey, system, userContent, maxTokens = 3000, model = KIT_MESSAGES_MODEL) {
   return fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
@@ -882,7 +884,7 @@ function kitFetchMessages(apiKey, system, userContent, maxTokens = 3500) {
       'anthropic-dangerous-direct-browser-access': 'true',
     },
     body: JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
+      model,
       max_tokens: maxTokens,
       system,
       messages: [{ role: 'user', content: userContent }],
@@ -1006,7 +1008,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const gapsLine = (Array.isArray(r?.missingSkills) ? r.missingSkills : []).filter(Boolean).join(', ')
   const transferNotes = String(r?.transferableNotes || '').trim()
   const voiceSec = voiceProfile?.analysis
-    ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
+    ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1000)
     : ''
 
   const generateTailoredResume = useCallback(async (isRegenerate = false) => {
@@ -1029,7 +1031,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         ? '\n\nSKILL GAPS IDENTIFIED FOR THIS JOB (honest framing only — rephrase existing experience toward these themes; do NOT claim new tools, years, or credentials):\n' + gapsLine + '\n'
         : ''
       const transferSec = transferNotes
-        ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 6000) + '\n'
+        ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 4000) + '\n'
         : ''
       const varHint =
         isRegenerate
@@ -1037,12 +1039,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
           : ''
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
-        (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 8000) + '\n\n' : '') +
+        (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 6000) + '\n\n' : '') +
         gapsSec +
         transferSec +
         varHint +
         'SOURCE RESUME — sole source of truth for facts (employers, dates, titles, education, tools, metrics). Do not add, remove, or alter facts:\n' +
-        sourceResume.slice(0, 12000) +
+        sourceResume.slice(0, 9000) +
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
@@ -1057,6 +1059,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         apiKey,
         'You edit resumes for specific job postings. Facts may come ONLY from the candidate source resume text supplied by the user. The job description and skill-gap notes guide emphasis and honest transferable framing; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
         userContent,
+        2800,
       )
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
@@ -1313,7 +1316,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
               <div style={{ padding: '12px 0 8px', borderBottom: showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none' }}>
                 {loading && (
                   <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
-                    <Dots /> Drafting your resume for this role…
+                    <Dots /> Drafting your resume… usually under a minute.
                   </div>
                 )}
                 {!loading && (
