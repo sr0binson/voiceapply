@@ -1606,7 +1606,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         </>
       )}
       {inputMode === 'description' && jd.trim() && !loading && (
-        <div style={{ marginTop: 8, marginLeft: 6 }}>
+        <div style={{ marginTop: 4, marginLeft: 6 }}>
           <button
             type="button"
             onClick={() => { setJd(''); setCurrentResult(null); setError('') }}
@@ -1620,34 +1620,54 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           </button>
         </div>
       )}
-      <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:12, justifyContent:'flex-end', flexWrap:'wrap' }}>
-  {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
-  <span style={{ fontSize:15, fontWeight:600, color:C.text, fontFamily:"'DM Sans', sans-serif", marginRight:4 }}>Start</span>
-  <button
-    onClick={() => analyze(false)}
-    disabled={loading}
-    style={{
-      border:'none', cursor:loading?'not-allowed':'pointer', background:'transparent',
-      color:C.cyan, fontSize:44, fontWeight:700, lineHeight:1, opacity:loading?0.45:1,
-      fontFamily:"'DM Sans', sans-serif", display:'inline-flex', alignItems:'center', justifyContent:'center',
-      padding:0, textShadow:'0 3px 12px rgba(78,205,196,0.45)', transform:'translateY(-1px)',
-      transition:'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
-    }}
-    onMouseEnter={e => {
-      if (loading) return
-      e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
-      e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
-    }}
-    onMouseLeave={e => {
-      e.currentTarget.style.transform = 'translateY(-1px)'
-      e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
-    }}
-    aria-label={loading ? 'Analyzing job' : 'Analyze job'}
-    title={loading ? 'Analyzing...' : 'Analyze'}
-  >
-    ▸
-  </button>
-</div>
+      <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', justifyContent: 'flex-end', flexWrap: 'wrap', gap: 10 }}>
+        {loading && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13, marginRight: 'auto' }}>
+            <Dots />
+            {loadMsg}
+          </div>
+        )}
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Start</span>
+          <button
+            onClick={() => analyze(false)}
+            disabled={loading}
+            style={{
+              border: 'none',
+              cursor: loading ? 'not-allowed' : 'pointer',
+              background: 'transparent',
+              color: C.cyan,
+              fontSize: 44,
+              fontWeight: 700,
+              lineHeight: 1,
+              opacity: loading ? 0.45 : 1,
+              fontFamily: "'DM Sans', sans-serif",
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: 0,
+              margin: 0,
+              marginLeft: -2,
+              textShadow: '0 3px 12px rgba(78,205,196,0.45)',
+              transform: 'translateY(-1px)',
+              transition: 'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
+            }}
+            onMouseEnter={e => {
+              if (loading) return
+              e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
+              e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
+            }}
+            onMouseLeave={e => {
+              e.currentTarget.style.transform = 'translateY(-1px)'
+              e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
+            }}
+            aria-label={loading ? 'Analyzing job' : 'Analyze job'}
+            title={loading ? 'Analyzing...' : 'Analyze'}
+          >
+            ▸
+          </button>
+        </div>
+      </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
       {currentResult && (
         <ResultCard
