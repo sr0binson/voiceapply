@@ -421,7 +421,7 @@ function linkifyContactLine(text) {
   return out.length ? out : s
 }
 
-/** Name row: always 25px bold darkest grey. Headline row: always 12px bold medium grey — never larger than name. */
+/** Name = 20px; headline = 12px — separate style objects; wrapper must not set fontSize (avoids inheritance issues). */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
@@ -442,9 +442,8 @@ function TailoredResumeFirstHeader({ paraLines }) {
       </div>
     )
   }
-  /** Explicit px + fontWeight so headline can never visually exceed name. */
-  const nameStyle = {
-    fontSize: '20px',
+  const tailoredResumeNameStyle = {
+    fontSize: 20,
     fontWeight: 700,
     lineHeight: 1.2,
     color: C.resumeName,
@@ -452,8 +451,8 @@ function TailoredResumeFirstHeader({ paraLines }) {
     margin: 0,
     padding: 0,
   }
-  const headlineStyle = {
-    fontSize: '12px',
+  const tailoredResumeHeadlineStyle = {
+    fontSize: 12,
     fontWeight: 700,
     lineHeight: 1.45,
     color: C.resumeHeadline,
@@ -464,8 +463,8 @@ function TailoredResumeFirstHeader({ paraLines }) {
   }
   if (lines.length === 1) {
     return (
-      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-        <div style={{ ...nameStyle, marginBottom: 0 }}>{lines[0]}</div>
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+        <div style={{ ...tailoredResumeNameStyle, marginBottom: 0 }}>{lines[0]}</div>
       </div>
     )
   }
@@ -476,9 +475,9 @@ function TailoredResumeFirstHeader({ paraLines }) {
       console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', { name, headlineParts })
       const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
       return (
-        <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-          {name ? <div style={{ ...nameStyle, marginBottom: headline ? 4 : 6 }}>{name}</div> : null}
-          {headline ? <div style={{ ...headlineStyle, marginBottom: 6 }}>{headline}</div> : null}
+        <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+          {name ? <div style={{ ...tailoredResumeNameStyle, marginBottom: headline ? 4 : 6 }}>{name}</div> : null}
+          {headline ? <div style={{ ...tailoredResumeHeadlineStyle, marginBottom: 6 }}>{headline}</div> : null}
           {contactBlock(lines[1])}
         </div>
       )
@@ -488,9 +487,9 @@ function TailoredResumeFirstHeader({ paraLines }) {
     console.log('[TailoredResumeFirstHeader] 2-line (name + headline)', { name, headlineParts })
     const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
     return (
-      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-        {name ? <div style={{ ...nameStyle, marginBottom: headline ? 4 : 0 }}>{name}</div> : null}
-        {headline ? <div style={headlineStyle}>{headline}</div> : null}
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+        {name ? <div style={{ ...tailoredResumeNameStyle, marginBottom: headline ? 4 : 0 }}>{name}</div> : null}
+        {headline ? <div style={tailoredResumeHeadlineStyle}>{headline}</div> : null}
       </div>
     )
   }
@@ -501,9 +500,9 @@ function TailoredResumeFirstHeader({ paraLines }) {
   console.log('[TailoredResumeFirstHeader] 3+ line (name + headline + contact)', { name, headlineParts })
   const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
   return (
-    <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left', fontSize: '12px' }}>
-      {name ? <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div> : null}
-      {headline ? <div style={headlineStyle}>{headline}</div> : null}
+    <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left' }}>
+      {name ? <div style={{ ...tailoredResumeNameStyle, marginBottom: 4 }}>{name}</div> : null}
+      {headline ? <div style={tailoredResumeHeadlineStyle}>{headline}</div> : null}
       {contactBlock(contactLine)}
     </div>
   )
