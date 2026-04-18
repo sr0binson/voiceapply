@@ -891,17 +891,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const [tailored, setTailored] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
-  const [resumeVar, setResumeVar] = useState(0)
   const [coverText, setCoverText] = useState('')
   const [coverLoading, setCoverLoading] = useState(false)
   const [coverErr, setCoverErr] = useState('')
-  const [coverVar, setCoverVar] = useState(0)
-  const [coverRegenCount, setCoverRegenCount] = useState(0)
   const [connectText, setConnectText] = useState('')
   const [connectLoading, setConnectLoading] = useState(false)
   const [connectErr, setConnectErr] = useState('')
-  const [connectVar, setConnectVar] = useState(0)
-  const [connectRegenCount, setConnectRegenCount] = useState(0)
   const [resumeEdit, setResumeEdit] = useState(false)
   const [coverEdit, setCoverEdit] = useState(false)
   const [connectEdit, setConnectEdit] = useState(false)
@@ -916,11 +911,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setCoverEdit(false)
     setConnectEdit(false)
     autoGenAttemptedRef.current = null
-    setResumeVar(0)
-    setCoverVar(0)
-    setCoverRegenCount(0)
-    setConnectVar(0)
-    setConnectRegenCount(0)
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
     } catch {
@@ -942,7 +932,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
     : ''
 
-  const generateTailoredResume = useCallback(async (variationRound = 0, isRegenerate = false) => {
+  const generateTailoredResume = useCallback(async (isRegenerate = false) => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
       return
@@ -966,7 +956,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         : ''
       const varHint =
         isRegenerate
-          ? `\n\nREGENERATION — idea ${variationRound + 1} of 3: meaningfully different layout or bullet emphasis; SAME facts as source resume only. No new employers, dates, tools, or metrics.\n`
+          ? '\n\nREGENERATION: meaningfully different layout or bullet emphasis; SAME facts as source resume only. No new employers, dates, tools, or metrics.\n'
           : ''
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
@@ -1009,7 +999,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
 
   const generateCoverVariant = useCallback(
-    async (variationRound = 0) => {
+    async () => {
       if (!keySaved || !apiKey) {
         alert('Save your API key first.')
         return
@@ -1019,7 +1009,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       setCoverLoading(true)
       setCoverErr('')
       try {
-        const varHint = `REGENERATION — idea ${variationRound + 1} of 3: different opening and paragraph emphasis; same facts as resume and reference only.\n\n`
+        const varHint = 'REGENERATION: different opening and paragraph emphasis; same facts as resume and reference only.\n\n'
         const userContent =
           varHint +
           'Target role: ' + jobLine + '\n\n' +
@@ -1051,7 +1041,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   )
 
   const generateConnectVariant = useCallback(
-    async (variationRound = 0) => {
+    async () => {
       if (!keySaved || !apiKey) {
         alert('Save your API key first.')
         return
@@ -1061,7 +1051,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       setConnectLoading(true)
       setConnectErr('')
       try {
-        const varHint = `REGENERATION — idea ${variationRound + 1} of 3: different hook; same facts and honesty.\n\n`
+        const varHint = 'REGENERATION: different hook; same facts and honesty.\n\n'
         const userContent =
           varHint +
           'Job: ' + jobLine + '\n' +
@@ -1103,7 +1093,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     if (autoGenAttemptedRef.current === storageKey) return
     autoGenAttemptedRef.current = storageKey
     setResumeVar(0)
-    generateTailoredResume(0, false)
+    generateTailoredResume(false)
   }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
 
   useEffect(() => {
@@ -1159,23 +1149,15 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   }
 
   const handleResumeRegen = async () => {
-    const next = (resumeVar + 1) % 3
-    setResumeVar(next)
-    await generateTailoredResume(next, true)
+    await generateTailoredResume(true)
   }
 
   const handleCoverRegen = async () => {
-    const slot = coverRegenCount % 3
-    setCoverRegenCount(c => c + 1)
-    setCoverVar(slot)
-    await generateCoverVariant(slot)
+    await generateCoverVariant()
   }
 
   const handleConnectRegen = async () => {
-    const slot = connectRegenCount % 3
-    setConnectRegenCount(c => c + 1)
-    setConnectVar(slot)
-    await generateConnectVariant(slot)
+    await generateConnectVariant()
   }
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
@@ -1265,7 +1247,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                     <KitActionRow
                       onRegenerate={handleResumeRegen}
                       regenDisabled={loading || !canGenerate}
-                      regenLabel={tailored.trim() ? `Regenerate (${resumeVar + 1}/3)` : 'Generate'}
+                      regenLabel={tailored.trim() ? 'Regenerate' : 'Generate'}
                       copyText={tailored}
                       onEditInContent={() => setResumeEdit(e => !e)}
                       editOpen={resumeEdit}
@@ -1310,7 +1292,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                       <KitActionRow
                         onRegenerate={handleCoverRegen}
                         regenDisabled={coverLoading || !String(coverText || r?.coverLetter || '').trim()}
-                        regenLabel={`Regenerate (${coverVar + 1}/3)`}
+                        regenLabel="Regenerate"
                         copyText={coverText}
                         onEditInContent={() => setCoverEdit(e => !e)}
                         editOpen={coverEdit}
@@ -1348,7 +1330,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                       <KitActionRow
                         onRegenerate={handleConnectRegen}
                         regenDisabled={connectLoading || !String(connectText || r?.outreachMessage || '').trim()}
-                        regenLabel={`Regenerate (${connectVar + 1}/3)`}
+                        regenLabel="Regenerate"
                         copyText={connectText}
                         onEditInContent={() => setConnectEdit(e => !e)}
                         editOpen={connectEdit}
@@ -1835,7 +1817,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           <Btn small onClick={() => setTab('VoicePrint')} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Set up →</Btn>
         </div>
       )}
-      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
+      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Job Analysis</h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Paste a job description. Get your match score, cover letter, and outreach message.</p>
       <div style={{ marginBottom:14 }}>
         <Label>Mode</Label>
@@ -1890,44 +1872,39 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
             {loadMsg}
           </div>
         )}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 2 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Start</span>
+        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Analyze</span>
           <button
+            type="button"
             onClick={() => analyze(false)}
             disabled={loading}
             style={{
               border: 'none',
               cursor: loading ? 'not-allowed' : 'pointer',
               background: 'transparent',
-              color: C.cyan,
-              fontSize: 44,
-              fontWeight: 700,
-              lineHeight: 1,
-              opacity: loading ? 0.45 : 1,
-              fontFamily: "'DM Sans', sans-serif",
+              padding: 0,
+              margin: 0,
               display: 'inline-flex',
               alignItems: 'center',
               justifyContent: 'center',
-              padding: 0,
-              margin: 0,
-              marginLeft: -2,
-              textShadow: '0 3px 12px rgba(78,205,196,0.45)',
-              transform: 'translateY(-1px)',
-              transition: 'transform 0.15s ease, text-shadow 0.15s ease, opacity 0.15s ease',
+              lineHeight: 1,
+              opacity: loading ? 0.45 : 1,
+              fontFamily: "'DM Sans', sans-serif",
             }}
-            onMouseEnter={e => {
-              if (loading) return
-              e.currentTarget.style.transform = 'translateY(-2px) scale(1.06)'
-              e.currentTarget.style.textShadow = '0 5px 16px rgba(78,205,196,0.55)'
-            }}
-            onMouseLeave={e => {
-              e.currentTarget.style.transform = 'translateY(-1px)'
-              e.currentTarget.style.textShadow = '0 3px 12px rgba(78,205,196,0.45)'
-            }}
-            aria-label={loading ? 'Analyzing job' : 'Analyze job'}
-            title={loading ? 'Analyzing...' : 'Analyze'}
+            aria-label={loading ? 'Running job analysis' : 'Run job analysis'}
+            title={loading ? 'Analyzing…' : 'Run job analysis'}
           >
-            ▸
+            <span
+              style={{
+                fontSize: 9,
+                color: C.cyan,
+                display: 'inline-block',
+                lineHeight: 1,
+              }}
+              aria-hidden="true"
+            >
+              ▶
+            </span>
           </button>
         </div>
       </div>
