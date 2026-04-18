@@ -30,6 +30,12 @@ const C = {
   connectPanelTitle: '#5c4a26',
   kitResumeBg: '#faf9f7',
   kitCoverBg: '#f3f1ed',
+  /** Tailored resume typography (darkest name → lighter headline → section titles) */
+  resumeName: '#0a0a09',
+  resumeHeadline: '#4a4a44',
+  resumeSectionTitle: '#2c2c28',
+  resumeBody: '#1c1c1a',
+  resumeLinkCyan: '#157a73',
 }
 
 function Label({ children }) {
@@ -216,9 +222,50 @@ function resumeLineLooksSection(trimmed) {
   )
 }
 
-function resumeSectionIsSkills(headerLine) {
+/** Which section we're in for tailored resume layout (experience = title/date rows). */
+function resumeSectionId(headerLine) {
   const u = String(headerLine || '').toUpperCase()
-  return /\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)
+  if (/\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)) return 'skills'
+  if (/\bEXPERIENCE\b/.test(u) || /\bEMPLOYMENT\b/.test(u) || /\bWORK HISTORY\b/.test(u)) return 'experience'
+  return 'other'
+}
+
+function looksLikeDateFragment(s) {
+  const t = String(s || '').trim()
+  if (!t) return false
+  return (
+    /\d{4}/.test(t) &&
+    /(Present|Current|Ongoing|Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec|\d{1,2}\/\d{4})/i.test(t)
+  )
+}
+
+/** Split job title (bold left) from date range (italic right); use 2+ spaces or tab in source when possible. */
+function splitTitleAndDates(line) {
+  const t = String(line || '').trim()
+  if (!t) return { title: '', dates: null }
+  const byGap = t.split(/\s{2,}|\t+/)
+  if (byGap.length >= 2) {
+    const dates = byGap[byGap.length - 1].trim()
+    const title = byGap.slice(0, -1).join(' ').trim()
+    if (looksLikeDateFragment(dates)) return { title, dates }
+  }
+  const monthStart = /\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\.?\s+\d{4}/i
+  let best = -1
+  let m
+  while ((m = monthStart.exec(t)) !== null) best = m.index
+  if (best > 0) return { title: t.slice(0, best).trim(), dates: t.slice(best).trim() }
+  const y = t.search(/\b(20\d{2}|19\d{2})\s*[–—-]\s*/)
+  if (y > 0) return { title: t.slice(0, y).trim(), dates: t.slice(y).trim() }
+  return { title: t, dates: null }
+}
+
+function normalizeContactForDisplay(raw) {
+  const s = Array.isArray(raw) ? raw.join(' | ') : String(raw || '')
+  return s
+    .split(/\s*[|•]\s*/)
+    .map(x => x.trim())
+    .filter(Boolean)
+    .join('  •  ')
 }
 
 /** Multiple title phrases → single line with pipes. */
@@ -242,29 +289,32 @@ function normalizeHeadlineDisplay(headline) {
   return h
 }
 
-const LINKIFY_RE = /(https?:\/\/[^\s|]+|www\.[^\s|]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/gi
+/** Contact line only: URLs, email, www., and 555-555-5555-style phones → tel: */
+const LINKIFY_CONTACT_RE =
+  /(https?:\/\/[^\s|•]+|www\.[^\s|•]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}|\b\d{3}-\d{3}-\d{4}\b)/gi
 
-/** Makes http(s), www., and email substrings clickable in one line of contact text. */
 function linkifyContactLine(text) {
   const s = String(text || '')
   if (!s) return null
   const out = []
   let last = 0
   let m
-  const re = new RegExp(LINKIFY_RE.source, 'gi')
+  const re = new RegExp(LINKIFY_CONTACT_RE.source, 'gi')
   while ((m = re.exec(s)) !== null) {
     if (m.index > last) out.push(s.slice(last, m.index))
     const token = m[0]
     const isEmail = /^[\w.%+-]+@/.test(token)
+    const isPhone = /^\d{3}-\d{3}-\d{4}$/.test(token)
     let href = token
     if (isEmail) href = `mailto:${token}`
+    else if (isPhone) href = `tel:${token.replace(/-/g, '')}`
     else if (/^www\./i.test(token)) href = `https://${token}`
     out.push(
       <a
         key={`lc-${m.index}-${out.length}`}
         href={href}
-        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-        style={{ color: C.cyan, textDecoration: 'underline', wordBreak: 'break-all' }}
+        {...(isEmail || isPhone ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        style={{ color: C.resumeLinkCyan, textDecoration: 'underline', wordBreak: 'break-all' }}
       >
         {token}
       </a>,
@@ -275,18 +325,19 @@ function linkifyContactLine(text) {
   return out.length ? out : s
 }
 
-/** Name (bold, large), headline (pipes), contact left-aligned with linkified URLs/emails. */
+/** Name (bold 20 darkest), headline (11 bold, pipes), contact Location • phone • email • links. */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
   const contactBlock = (raw) => {
-    const joined = Array.isArray(raw) ? raw.join('  |  ') : String(raw)
+    const joined = normalizeContactForDisplay(raw)
     return (
       <div
         style={{
-          fontSize: 11.5,
+          fontSize: 11,
           lineHeight: 1.55,
-          color: C.text,
+          fontWeight: 400,
+          color: C.resumeBody,
           wordBreak: 'break-word',
         }}
       >
@@ -294,39 +345,31 @@ function TailoredResumeFirstHeader({ paraLines }) {
       </div>
     )
   }
+  const nameStyle = {
+    fontSize: 20,
+    fontWeight: 700,
+    lineHeight: 1.2,
+    color: C.resumeName,
+    letterSpacing: '-0.02em',
+  }
+  const headlineStyle = {
+    fontSize: 11,
+    fontWeight: 700,
+    lineHeight: 1.45,
+    color: C.resumeHeadline,
+    marginBottom: 6,
+  }
   if (lines.length === 1) {
     return (
-      <div style={{ width: '100%', margin: '0 auto 14px', textAlign: 'left' }}>
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            marginBottom: 0,
-            color: C.text,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {lines[0]}
-        </div>
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+        <div style={{ ...nameStyle, marginBottom: 0 }}>{lines[0]}</div>
       </div>
     )
   }
   if (lines.length === 2) {
     return (
-      <div style={{ width: '100%', margin: '0 auto 14px', textAlign: 'left' }}>
-        <div
-          style={{
-            fontSize: 20,
-            fontWeight: 700,
-            lineHeight: 1.2,
-            marginBottom: 8,
-            color: C.text,
-            letterSpacing: '-0.02em',
-          }}
-        >
-          {lines[0]}
-        </div>
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+        <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
         {contactBlock(lines[1])}
       </div>
     )
@@ -335,33 +378,64 @@ function TailoredResumeFirstHeader({ paraLines }) {
   const contactLine = lines[lines.length - 1]
   const headline = normalizeHeadlineDisplay(lines.slice(1, -1).join(' | '))
   return (
-    <div style={{ width: '100%', margin: '0 auto 16px', textAlign: 'left' }}>
+    <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left' }}>
+      <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div>
+      {headline ? <div style={headlineStyle}>{headline}</div> : null}
+      {contactBlock(contactLine)}
+    </div>
+  )
+}
+
+/** Experience: bold title (11) + italic dates right-aligned in a column; company lines below. */
+function TailoredExperienceParagraph({ paraLines }) {
+  if (!paraLines.length) return null
+  const first = paraLines[0].trim()
+  const rest = paraLines.slice(1).map(l => l.trim()).filter(Boolean)
+  const { title, dates } = splitTitleAndDates(first)
+  return (
+    <div style={{ margin: '0 0 12px', textAlign: 'left' }}>
       <div
         style={{
-          fontSize: 20,
-          fontWeight: 700,
-          lineHeight: 1.2,
-          marginBottom: 6,
-          color: C.text,
-          letterSpacing: '-0.02em',
+          display: 'grid',
+          gridTemplateColumns: 'minmax(0, 1fr) minmax(148px, max-content)',
+          columnGap: 28,
+          alignItems: 'baseline',
+          marginBottom: rest.length ? 3 : 5,
         }}
       >
-        {name}
+        <span style={{ fontWeight: 700, fontSize: 11, color: C.resumeBody, lineHeight: 1.35 }}>{title}</span>
+        {dates ? (
+          <span
+            style={{
+              fontStyle: 'italic',
+              fontWeight: 400,
+              fontSize: 11,
+              color: C.resumeBody,
+              textAlign: 'right',
+              whiteSpace: 'nowrap',
+              lineHeight: 1.35,
+            }}
+          >
+            {dates}
+          </span>
+        ) : (
+          <span />
+        )}
       </div>
-      {headline ? (
+      {rest.map((line, i) => (
         <div
+          key={i}
           style={{
-            fontSize: 12.5,
-            fontWeight: 500,
+            fontSize: 11,
+            fontWeight: 400,
             lineHeight: 1.45,
-            marginBottom: 8,
-            color: C.text,
+            color: C.resumeBody,
+            marginBottom: i < rest.length - 1 ? 2 : 0,
           }}
         >
-          {headline}
+          {line}
         </div>
-      ) : null}
-      {contactBlock(contactLine)}
+      ))}
     </div>
   )
 }
@@ -380,26 +454,26 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
   const nodes = []
   let bulletBuf = []
   let isFirstContactBlock = true
-  /** Section active for bullet list being built ('skills' uses inline · layout). */
-  let resumeSectionKind = 'other'
+  /** Last ALL-CAPS section seen — drives skills layout and experience job rows. */
+  let activeSectionId = null
   const flushBullets = () => {
     if (!bulletBuf.length) return
-    if (resumeSectionKind === 'skills') {
+    if (activeSectionId === 'skills') {
       nodes.push(
         <div
           key={`b-${nodes.length}`}
           style={{
             margin: '0 0 12px 0',
-            fontSize: 11.5,
+            fontSize: 11,
             lineHeight: 1.65,
-            color: C.text,
+            color: C.resumeBody,
           }}
         >
           {bulletBuf.map((item, i) => (
             <span key={i}>
               {item.trim()}
               {i < bulletBuf.length - 1 && (
-                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                <span style={{ color: C.resumeHeadline, userSelect: 'none', fontSize: 10 }} aria-hidden>
                   {' '}
                   •{' '}
                 </span>
@@ -413,13 +487,13 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         <ul
           key={`b-${nodes.length}`}
           style={{
-            margin: '0 0 14px 0',
+            margin: '0 0 12px 0',
             padding: '0 0 0 1.1em',
             listStyleType: 'disc',
             listStylePosition: 'outside',
-            fontSize: 11.5,
+            fontSize: 11,
             lineHeight: 1.48,
-            color: C.text,
+            color: C.resumeBody,
           }}
         >
           {bulletBuf.map((item, i) => (
@@ -447,19 +521,19 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     }
     flushBullets()
     if (resumeLineLooksSection(trimmed)) {
-      resumeSectionKind = resumeSectionIsSkills(trimmed) ? 'skills' : 'other'
+      activeSectionId = resumeSectionId(trimmed)
       nodes.push(
         <div
           key={`s-${nodes.length}`}
           style={{
-            fontSize: 10,
+            fontSize: 12,
             fontWeight: 700,
-            letterSpacing: '0.11em',
+            letterSpacing: '0.06em',
             textTransform: 'uppercase',
-            color: C.text,
-            marginTop: nodes.length ? 14 : 0,
-            marginBottom: 6,
-            paddingBottom: 5,
+            color: C.resumeSectionTitle,
+            marginTop: nodes.length ? 12 : 0,
+            marginBottom: 0,
+            paddingBottom: 2,
             borderBottom: `1px solid ${C.borderStrong}`,
           }}
         >
@@ -482,6 +556,8 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     nodes.push(
       isFirstContactBlock ? (
         <TailoredResumeFirstHeader key={`p-${nodes.length}`} paraLines={paraLines} />
+      ) : activeSectionId === 'experience' ? (
+        <TailoredExperienceParagraph key={`p-${nodes.length}`} paraLines={paraLines} />
       ) : (
         <p
           key={`p-${nodes.length}`}
@@ -490,7 +566,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
             maxWidth: '100%',
             fontSize: 11.5,
             lineHeight: 1.48,
-            color: C.text,
+            color: C.resumeBody,
             whiteSpace: 'pre-line',
           }}
         >
@@ -514,6 +590,8 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         margin: '0 auto',
         overflowX: 'auto',
         fontFamily: "'DM Sans', sans-serif",
+        textAlign: 'left',
+        color: C.resumeBody,
       }}
     >
       {nodes}
@@ -715,11 +793,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         sourceResume.slice(0, 12000) +
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
-        'FORMAT (plain text, no markdown):\n' +
-        '- Header before SUMMARY: line 1 = full name; lines before the final header line = headline/title (if several phrases, put them on one line separated by | ); final line of the header = contact only — email, phone, city, LinkedIn, portfolio URLs, separated by | or · when multiple. Use full https:// URLs for websites when present in the source.\n' +
-        '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, then SKILLS, then EXPERIENCE, then PROJECTS, then EDUCATION & CERTIFICATIONS.\n' +
-        '- Aim for one page for entry-level / early-career candidates: concise bullets, tight wording, no redundancy.\n' +
-        '- Blank line between sections. Bullet lines start with "- ". In SKILLS, one skill per "- " line (short phrase).\n' +
+        'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
+        '- Header before SUMMARY: line 1 = full name only; middle line(s) = professional headline with each title phrase separated by | (example: IT Support | Help Desk | Automation); last line of header = contact ONLY in this order when available: City/Location • phone as 555-555-5555 • email • https:// URLs for LinkedIn/portfolio (use • between items). Full https:// links for websites.\n' +
+        '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, SKILLS, EXPERIENCE, PROJECTS, EDUCATION & CERTIFICATIONS.\n' +
+        '- EXPERIENCE: For each role, line 1 = job title (bold in UI) then TWO OR MORE spaces (or a tab) then the date range (e.g. March 2021 – Present). Line 2 = Company — Location (plain). Then bullet lines with "- " for achievements. Repeat for each job.\n' +
+        '- Aim for one page for entry-level / early-career: concise bullets, tight wording.\n' +
+        '- Blank line between sections. In SKILLS, one skill per "- " line (short phrase).\n' +
         '- No emoji, tables, or decorative characters.\n' +
         'Return ONLY the resume text.'
 
