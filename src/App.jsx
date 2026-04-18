@@ -84,7 +84,7 @@ function CopyBtn({ text, style: styleProp = {} }) {
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
       style={{
-        fontSize: 12, padding: '6px 14px', borderRadius: 8, minHeight: 32, boxSizing: 'border-box',
+        marginTop: 10, fontSize: 12, padding: '6px 14px', borderRadius: 8, minHeight: 32, boxSizing: 'border-box',
         border: `1px solid ${C.border}`, background: C.surface2, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", color: C.muted,
         ...styleProp,
       }}>
@@ -471,10 +471,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const [coverLoading, setCoverLoading] = useState(false)
   const [coverErr, setCoverErr] = useState('')
   const [coverVar, setCoverVar] = useState(0)
+  const [coverRegenCount, setCoverRegenCount] = useState(0)
   const [connectText, setConnectText] = useState('')
   const [connectLoading, setConnectLoading] = useState(false)
   const [connectErr, setConnectErr] = useState('')
   const [connectVar, setConnectVar] = useState(0)
+  const [connectRegenCount, setConnectRegenCount] = useState(0)
   const [resumeEdit, setResumeEdit] = useState(false)
   const [coverEdit, setCoverEdit] = useState(false)
   const [connectEdit, setConnectEdit] = useState(false)
@@ -491,7 +493,9 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     autoGenAttemptedRef.current = null
     setResumeVar(0)
     setCoverVar(0)
+    setCoverRegenCount(0)
     setConnectVar(0)
+    setConnectRegenCount(0)
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
     } catch {
@@ -513,7 +517,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
     : ''
 
-  const generateTailoredResume = useCallback(async (variationRound = 0) => {
+  const generateTailoredResume = useCallback(async (variationRound = 0, isRegenerate = false) => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
       return
@@ -536,8 +540,8 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 6000) + '\n'
         : ''
       const varHint =
-        variationRound > 0
-          ? `\n\nREGENERATION ${variationRound + 1} of 3: Produce a meaningfully different layout or bullet emphasis while keeping the SAME facts as the source resume only. No new employers, dates, tools, or metrics.\n`
+        isRegenerate
+          ? `\n\nREGENERATION — idea ${variationRound + 1} of 3: meaningfully different layout or bullet emphasis; SAME facts as source resume only. No new employers, dates, tools, or metrics.\n`
           : ''
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
@@ -577,7 +581,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     } finally {
       setLoading(false)
     }
-  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey, voiceSec])
+  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
 
   const generateCoverVariant = useCallback(
     async (variationRound = 0) => {
@@ -585,15 +589,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         alert('Save your API key first.')
         return
       }
-      const base = String(r?.coverLetter || '').trim()
+      const base = String(coverText || r?.coverLetter || '').trim()
       if (!base) return
       setCoverLoading(true)
       setCoverErr('')
       try {
-        const varHint =
-          variationRound > 0
-            ? `Produce alternative ${variationRound + 1} of 3: different opening and paragraph emphasis; same facts as the reference only.\n\n`
-            : ''
+        const varHint = `REGENERATION — idea ${variationRound + 1} of 3: different opening and paragraph emphasis; same facts as resume and reference only.\n\n`
         const userContent =
           varHint +
           'Target role: ' + jobLine + '\n\n' +
@@ -621,7 +622,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         setCoverLoading(false)
       }
     },
-    [keySaved, apiKey, r?.coverLetter, jobLine, jdBlock, sourceResume, voiceSec],
+    [keySaved, apiKey, r?.coverLetter, coverText, jobLine, jdBlock, sourceResume, voiceSec],
   )
 
   const generateConnectVariant = useCallback(
@@ -630,15 +631,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         alert('Save your API key first.')
         return
       }
-      const base = String(r?.outreachMessage || '').trim()
+      const base = String(connectText || r?.outreachMessage || '').trim()
       if (!base) return
       setConnectLoading(true)
       setConnectErr('')
       try {
-        const varHint =
-          variationRound > 0
-            ? `Alternative ${variationRound + 1} of 3: different hook; same intent and honesty.\n\n`
-            : ''
+        const varHint = `REGENERATION — idea ${variationRound + 1} of 3: different hook; same facts and honesty.\n\n`
         const userContent =
           varHint +
           'Job: ' + jobLine + '\n' +
@@ -664,7 +662,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         setConnectLoading(false)
       }
     },
-    [keySaved, apiKey, r?.outreachMessage, jobLine, jdBlock],
+    [keySaved, apiKey, r?.outreachMessage, connectText, jobLine, jdBlock],
   )
 
   useEffect(() => {
@@ -680,7 +678,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     if (autoGenAttemptedRef.current === storageKey) return
     autoGenAttemptedRef.current = storageKey
     setResumeVar(0)
-    generateTailoredResume(0)
+    generateTailoredResume(0, false)
   }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
 
   useEffect(() => {
@@ -738,19 +736,21 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const handleResumeRegen = async () => {
     const next = (resumeVar + 1) % 3
     setResumeVar(next)
-    await generateTailoredResume(next)
+    await generateTailoredResume(next, true)
   }
 
   const handleCoverRegen = async () => {
-    const next = (coverVar + 1) % 3
-    setCoverVar(next)
-    await generateCoverVariant(next)
+    const slot = coverRegenCount % 3
+    setCoverRegenCount(c => c + 1)
+    setCoverVar(slot)
+    await generateCoverVariant(slot)
   }
 
   const handleConnectRegen = async () => {
-    const next = (connectVar + 1) % 3
-    setConnectVar(next)
-    await generateConnectVariant(next)
+    const slot = connectRegenCount % 3
+    setConnectRegenCount(c => c + 1)
+    setConnectVar(slot)
+    await generateConnectVariant(slot)
   }
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
@@ -836,15 +836,13 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                 {!loading && (
                   <>
                     {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
-                    {!resumeEdit && <TailoredResumeView text={resumeEdit ? '' : tailored} paperBg={C.kitResumeBg} />}
+                    {!resumeEdit && <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />}
                     <KitActionRow
                       onRegenerate={handleResumeRegen}
                       regenDisabled={loading || !canGenerate}
                       regenLabel={tailored.trim() ? `Regenerate (${resumeVar + 1}/3)` : 'Generate'}
                       copyText={tailored}
-                      onEditInContent={() => {
-                        setResumeEdit(e => !e)
-                      }}
+                      onEditInContent={() => setResumeEdit(e => !e)}
                       editOpen={resumeEdit}
                       editValue={tailored}
                       onEditChange={v => {
@@ -855,36 +853,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                       }}
                       greigeBg={C.kitResumeBg}
                     />
-                    {resumeEdit && (
-                      <textarea
-                        value={tailored}
-                        onChange={e => {
-                          const v = e.target.value
-                          setTailored(v)
-                          try {
-                            sessionStorage.setItem(storageKey, v)
-                          } catch { /* ignore */ }
-                        }}
-                        rows={14}
-                        style={{
-                          width: '100%',
-                          marginTop: 12,
-                          boxSizing: 'border-box',
-                          border: `1px solid ${C.border}`,
-                          borderRadius: 10,
-                          padding: '12px 14px',
-                          fontSize: 13,
-                          fontFamily: "'DM Sans', sans-serif",
-                          lineHeight: 1.65,
-                          background: C.kitResumeBg,
-                          color: C.text,
-                          resize: 'vertical',
-                          outline: 'none',
-                        }}
-                      />
-                    )}
-                    {!resumeEdit && <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />}
-                    {resumeEdit && null}
                     {!sourceResume && (
                       <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
                     )}
@@ -916,7 +884,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                       )}
                       <KitActionRow
                         onRegenerate={handleCoverRegen}
-                        regenDisabled={coverLoading || !String(r?.coverLetter || '').trim()}
+                        regenDisabled={coverLoading || !String(coverText || r?.coverLetter || '').trim()}
                         regenLabel={`Regenerate (${coverVar + 1}/3)`}
                         copyText={coverText}
                         onEditInContent={() => setCoverEdit(e => !e)}
@@ -925,28 +893,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                         onEditChange={setCoverText}
                         greigeBg={C.kitCoverBg}
                       />
-                      {coverEdit && (
-                        <textarea
-                          value={coverText}
-                          onChange={e => setCoverText(e.target.value)}
-                          rows={14}
-                          style={{
-                            width: '100%',
-                            marginTop: 12,
-                            boxSizing: 'border-box',
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 10,
-                            padding: '12px 14px',
-                            fontSize: 13,
-                            fontFamily: "'DM Sans', sans-serif",
-                            lineHeight: 1.65,
-                            background: C.kitCoverBg,
-                            color: C.text,
-                            resize: 'vertical',
-                            outline: 'none',
-                          }}
-                        />
-                      )}
                     </>
                   )}
                 </div>
@@ -976,7 +922,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                       )}
                       <KitActionRow
                         onRegenerate={handleConnectRegen}
-                        regenDisabled={connectLoading || !String(r?.outreachMessage || '').trim()}
+                        regenDisabled={connectLoading || !String(connectText || r?.outreachMessage || '').trim()}
                         regenLabel={`Regenerate (${connectVar + 1}/3)`}
                         copyText={connectText}
                         onEditInContent={() => setConnectEdit(e => !e)}
@@ -985,28 +931,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                         onEditChange={setConnectText}
                         greigeBg={C.connectPanelBg}
                       />
-                      {connectEdit && (
-                        <textarea
-                          value={connectText}
-                          onChange={e => setConnectText(e.target.value)}
-                          rows={6}
-                          style={{
-                            width: '100%',
-                            marginTop: 12,
-                            boxSizing: 'border-box',
-                            border: `1px solid ${C.border}`,
-                            borderRadius: 10,
-                            padding: '12px 14px',
-                            fontSize: 13,
-                            fontFamily: "'DM Sans', sans-serif",
-                            lineHeight: 1.65,
-                            background: C.connectPanelBg,
-                            color: C.text,
-                            resize: 'vertical',
-                            outline: 'none',
-                          }}
-                        />
-                      )}
                     </>
                   )}
                 </div>
@@ -1826,8 +1750,8 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                           display: 'inline-flex', flexDirection: 'row', alignItems: 'center', gap: 5, color: C.text,
                         }}
                       >
-                        <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.06em' }}>AI</span>
-                        <span style={{ fontSize: 9, color: C.cyan, lineHeight: 1 }} aria-hidden="true">▶</span>
+                        <span style={{ fontSize: 13, fontWeight: 600, letterSpacing: '0.04em' }}>Build with AI</span>
+                        <CyanMicroTriangle open={false} />
                       </button>
                     </div>
                   </div>
@@ -1870,8 +1794,8 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                   display:'inline-flex', flexDirection:'row', alignItems:'center', gap:5, color:C.text,
                 }}
               >
-                <span style={{ fontSize:13, fontWeight:600, letterSpacing:'0.06em' }}>AI</span>
-                <span style={{ fontSize:9, color:C.cyan, lineHeight:1 }} aria-hidden="true">▶</span>
+                <span style={{ fontSize:13, fontWeight:600, letterSpacing:'0.04em' }}>Build with AI</span>
+                <CyanMicroTriangle open={false} />
               </button>
             </div>
           </div>
