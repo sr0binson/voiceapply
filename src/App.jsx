@@ -30,7 +30,7 @@ const C = {
   connectPanelTitle: '#5c4a26',
   kitResumeBg: '#faf9f7',
   kitCoverBg: '#f3f1ed',
-  /** Tailored resume typography (darkest name → lighter headline → section titles) */
+  /** Tailored resume header: name row always larger than headline row (px-locked in UI) */
   resumeName: '#0a0a09',
   resumeHeadline: '#6a6a64',
   resumeSectionTitle: '#2c2c28',
@@ -332,7 +332,7 @@ function linkifyContactLine(text) {
   return out.length ? out : s
 }
 
-/** Name (bold 25 darkest), headline (12 bold medium grey), contact — links only for email & sites. */
+/** Name row: always 25px bold darkest grey. Headline row: always 12px bold medium grey — never larger than name. */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
@@ -353,56 +353,47 @@ function TailoredResumeFirstHeader({ paraLines }) {
       </div>
     )
   }
+  /** Explicit px + fontWeight so headline can never visually exceed name. */
   const nameStyle = {
-    fontSize: 25,
+    fontSize: '25px',
     fontWeight: 700,
     lineHeight: 1.2,
     color: C.resumeName,
     letterSpacing: '-0.02em',
+    margin: 0,
+    padding: 0,
   }
   const headlineStyle = {
-    fontSize: 12,
+    fontSize: '12px',
     fontWeight: 700,
     lineHeight: 1.45,
     color: C.resumeHeadline,
+    margin: 0,
     marginBottom: 6,
+    padding: 0,
+    maxWidth: '100%',
   }
   if (lines.length === 1) {
     return (
-      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
         <div style={{ ...nameStyle, marginBottom: 0 }}>{lines[0]}</div>
       </div>
     )
   }
   if (lines.length === 2) {
     return (
-      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
+      <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
         <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
         {contactBlock(lines[1])}
       </div>
     )
   }
   const contactLine = lines[lines.length - 1]
-  /** If line 1 looks like titles (pipes) and line 2 like a person name, model order is headline → name → contact. */
-  const headlineLineFirst = (a, b) => {
-    const pa = (String(a).match(/\|/g) || []).length
-    const pb = (String(b).match(/\|/g) || []).length
-    if (pa >= 1 && pb === 0) return true
-    if (pa > pb && String(a).length > String(b).length + 8) return true
-    return false
-  }
-  let name
-  let headlineRaw
-  if (lines.length === 3 && headlineLineFirst(lines[0], lines[1])) {
-    name = lines[1]
-    headlineRaw = lines[0]
-  } else {
-    name = lines[0]
-    headlineRaw = lines.slice(1, -1).join(' | ')
-  }
-  const headline = normalizeHeadlineDisplay(headlineRaw)
+  /** Prompt order: line 1 = name, middle = headline, last = contact (sizes are fixed; do not swap rows). */
+  const name = lines[0]
+  const headline = normalizeHeadlineDisplay(lines.slice(1, -1).join(' | '))
   return (
-    <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left' }}>
+    <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left', fontSize: '12px' }}>
       <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div>
       {headline ? <div style={headlineStyle}>{headline}</div> : null}
       {contactBlock(contactLine)}
@@ -849,7 +840,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
-        '- Header before SUMMARY: line 1 = full name only; middle line(s) = professional headline with each title phrase separated by | (example: IT Support | Help Desk | Automation); last line of header = contact ONLY in this order when available: City/Location • phone as 555-555-5555 • email • https:// URLs for LinkedIn/portfolio (use • between items). Full https:// links for websites.\n' +
+        '- Header before SUMMARY (strict order — line 1 is always shown LARGEST as the name; headline lines are SMALLER): line 1 = candidate full name ONLY; middle line(s) = professional headline with | between phrases (example: IT Support | Help Desk | Automation); last line = contact ONLY: City/Location • phone 555-555-5555 • email • https URLs. Never put the headline before the name on line 1.\n' +
         '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, SKILLS, EXPERIENCE, PROJECTS, EDUCATION & CERTIFICATIONS.\n' +
         '- EXPERIENCE: For each role, line 1 = job title (bold in UI) then TWO OR MORE spaces (or a tab) then the date range (e.g. March 2021 – Present). Line 2 = Company — Location (plain). Then bullet lines with "- " for achievements. Repeat for each job.\n' +
         '- Aim for one page for entry-level / early-career: concise bullets, tight wording.\n' +
