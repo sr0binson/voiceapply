@@ -438,6 +438,10 @@ function TailoredResumeFirstHeader({ paraLines }) {
   if (lines.length === 2) {
     /** Blank line before contact → only 2 lines in block: often headline then name (not name+contact). */
     if (lineLooksLikeContact(lines[1])) {
+      console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', {
+        name: lines[0],
+        headlineParts: [],
+      })
       return (
         <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
           <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
@@ -446,6 +450,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
       )
     }
     const { name, headlineParts } = resolveNameHeadlineSlots(lines)
+    console.log('[TailoredResumeFirstHeader] 2-line (name + headline)', { name, headlineParts })
     const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
     return (
       <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
@@ -457,6 +462,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
   const contactLine = lines[lines.length - 1]
   const inner = lines.slice(0, -1)
   const { name, headlineParts } = resolveNameHeadlineSlots(inner)
+  console.log('[TailoredResumeFirstHeader] 3+ line (name + headline + contact)', { name, headlineParts })
   const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
   return (
     <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left', fontSize: '12px' }}>
