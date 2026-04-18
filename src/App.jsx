@@ -175,9 +175,9 @@ function generateResumePDF(data) {
     doc.text(title.toUpperCase(), margin, y); y += 4
     doc.setDrawColor(28,28,26); doc.setLineWidth(1); doc.line(margin, y, pageW-margin, y); y += 10
   }
-  doc.setFontSize(20); doc.setFont('helvetica','bold'); doc.setTextColor(28,28,26)
+  doc.setFontSize(25); doc.setFont('helvetica','bold'); doc.setTextColor(28,28,26)
   doc.text(data.name||'', margin, y); y += 24
-  if (data.tagline) { doc.setFontSize(10.5); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,76); doc.text(data.tagline, margin, y); y += 16 }
+  if (data.tagline) { doc.setFontSize(12); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,76); doc.text(data.tagline, margin, y); y += 16 }
   doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,96)
   const cp = [data.location,data.phone,data.email,data.linkedin,data.portfolio].filter(Boolean)
   if (cp.length) { doc.text(cp.join('  •  '), margin, y); y += 6 }
