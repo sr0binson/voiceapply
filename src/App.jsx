@@ -291,33 +291,47 @@ function normalizeHeadlineDisplay(headline) {
   return h
 }
 
-/**
- * Tailored resume models often put the professional headline on line 1 and the person's name on line 2.
- * We always render line 1 with 25px (name slot) and headline with 12px — so we must detect and swap semantics.
- */
-function headlineAppearsBeforeName(firstLine, secondLine) {
-  const a = String(firstLine || '').trim()
-  const b = String(secondLine || '').trim()
-  if (!a || !b) return false
-  const pipesA = (a.match(/\|/g) || []).length
-  const pipesB = (b.match(/\|/g) || []).length
-  /** Headline often has | ; person's name almost never does. */
-  if (pipesA >= 1 && pipesB === 0) return true
-  /** Long first line, short second → typical title block then name. */
-  if (a.length > b.length + 12 && pipesA >= pipesB) return true
+/** Lines that look like contact/URL — never chosen as the name. */
+function isLineExcludedFromNamePick(line) {
+  const s = String(line || '').trim()
+  if (!s) return true
+  if (s.includes('@')) return true
+  if (/http/i.test(s)) return true
+  if (/linkedin/i.test(s)) return true
+  if (/github/i.test(s)) return true
+  if (s.includes('.com')) return true
+  if (s.includes('•')) return true
+  if (/\d{3}[-.\s)]?\d{3}[-.\s]?\d{4}/.test(s)) return true
+  if (/\(\d{3}\)/.test(s)) return true
+  if (/\b\d{3}-\d{3}-\d{4}\b/.test(s)) return true
   return false
 }
 
-/** Returns { name, headlineParts } from lines above contact (last line already removed). */
+/**
+ * From lines above the contact row: ignore contact-like lines, then shortest remaining line = name;
+ * all other non-excluded lines = headline parts (order preserved).
+ */
 function resolveNameHeadlineSlots(innerLines) {
   const inner = innerLines.map(l => String(l || '').trim()).filter(Boolean)
   if (inner.length === 0) return { name: '', headlineParts: [] }
   if (inner.length === 1) return { name: inner[0], headlineParts: [] }
-  const [a, b, ...rest] = inner
-  if (headlineAppearsBeforeName(a, b)) {
-    return { name: b, headlineParts: [a, ...rest] }
+
+  const candidates = inner.filter(l => !isLineExcludedFromNamePick(l))
+  if (candidates.length === 0) {
+    return { name: inner[0], headlineParts: inner.slice(1) }
   }
-  return { name: a, headlineParts: [b, ...rest] }
+  if (candidates.length === 1) {
+    return { name: candidates[0], headlineParts: [] }
+  }
+
+  let minLen = Infinity
+  for (const line of candidates) {
+    if (line.length < minLen) minLen = line.length
+  }
+  const nameIdx = candidates.findIndex(l => l.length === minLen)
+  const name = candidates[nameIdx]
+  const headlineParts = candidates.filter((_, i) => i !== nameIdx)
+  return { name, headlineParts }
 }
 
 /** True if this line is clearly contact (email, URL, phone) — not a headline. */
