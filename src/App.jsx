@@ -221,79 +221,147 @@ function resumeSectionIsSkills(headerLine) {
   return /\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)
 }
 
-/** Name / headline / contact stacked and centered; Skills bullets render inline with · and wrap. */
+/** Multiple title phrases → single line with pipes. */
+function normalizeHeadlineDisplay(headline) {
+  let h = String(headline || '').trim()
+  if (!h) return ''
+  if (!h.includes('|')) {
+    h = h
+      .split(/\s*\/\s*/)
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(' | ')
+  }
+  if (!h.includes('|') && /,/.test(h)) {
+    h = h
+      .split(',')
+      .map(s => s.trim())
+      .filter(Boolean)
+      .join(' | ')
+  }
+  return h
+}
+
+const LINKIFY_RE = /(https?:\/\/[^\s|]+|www\.[^\s|]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/gi
+
+/** Makes http(s), www., and email substrings clickable in one line of contact text. */
+function linkifyContactLine(text) {
+  const s = String(text || '')
+  if (!s) return null
+  const out = []
+  let last = 0
+  let m
+  const re = new RegExp(LINKIFY_RE.source, 'gi')
+  while ((m = re.exec(s)) !== null) {
+    if (m.index > last) out.push(s.slice(last, m.index))
+    const token = m[0]
+    const isEmail = /^[\w.%+-]+@/.test(token)
+    let href = token
+    if (isEmail) href = `mailto:${token}`
+    else if (/^www\./i.test(token)) href = `https://${token}`
+    out.push(
+      <a
+        key={`lc-${m.index}-${out.length}`}
+        href={href}
+        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        style={{ color: C.cyan, textDecoration: 'underline', wordBreak: 'break-all' }}
+      >
+        {token}
+      </a>,
+    )
+    last = m.index + token.length
+  }
+  if (last < s.length) out.push(s.slice(last))
+  return out.length ? out : s
+}
+
+/** Name (bold, large), headline (pipes), contact left-aligned with linkified URLs/emails. */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
-  const rowHeadline = {
-    fontSize: 12,
-    fontWeight: 600,
-    letterSpacing: '0.02em',
-    marginBottom: 6,
-    lineHeight: 1.35,
-    color: C.text,
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
-    maxWidth: '100%',
-  }
-  const rowContact = {
-    display: 'flex',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: '0 10px',
-    rowGap: 4,
-    fontSize: 11.5,
-    lineHeight: 1.48,
-    color: C.text,
+  const contactBlock = (raw) => {
+    const joined = Array.isArray(raw) ? raw.join('  |  ') : String(raw)
+    return (
+      <div
+        style={{
+          fontSize: 11.5,
+          lineHeight: 1.55,
+          color: C.text,
+          wordBreak: 'break-word',
+        }}
+      >
+        {linkifyContactLine(joined)}
+      </div>
+    )
   }
   if (lines.length === 1) {
     return (
-      <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
-        <div style={{ ...rowHeadline, marginBottom: 0 }}>{lines[0]}</div>
+      <div style={{ width: '100%', margin: '0 auto 14px', textAlign: 'left' }}>
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            lineHeight: 1.2,
+            marginBottom: 0,
+            color: C.text,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {lines[0]}
+        </div>
       </div>
     )
   }
   if (lines.length === 2) {
     return (
-      <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
-        <div style={rowHeadline}>{lines[0]}</div>
-        <div style={rowContact}>
-          <span style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>{lines[1]}</span>
+      <div style={{ width: '100%', margin: '0 auto 14px', textAlign: 'left' }}>
+        <div
+          style={{
+            fontSize: 20,
+            fontWeight: 700,
+            lineHeight: 1.2,
+            marginBottom: 8,
+            color: C.text,
+            letterSpacing: '-0.02em',
+          }}
+        >
+          {lines[0]}
         </div>
+        {contactBlock(lines[1])}
       </div>
     )
   }
   const name = lines[0]
-  const headline = lines[1]
-  const contactParts = lines.slice(2)
+  const contactLine = lines[lines.length - 1]
+  const headline = normalizeHeadlineDisplay(lines.slice(1, -1).join(' | '))
   return (
-    <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
+    <div style={{ width: '100%', margin: '0 auto 16px', textAlign: 'left' }}>
       <div
         style={{
-          fontSize: 13,
+          fontSize: 20,
           fontWeight: 700,
-          letterSpacing: '0.04em',
-          marginBottom: 4,
-          lineHeight: 1.25,
+          lineHeight: 1.2,
+          marginBottom: 6,
           color: C.text,
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          maxWidth: '100%',
+          letterSpacing: '-0.02em',
         }}
       >
         {name}
       </div>
-      <div style={rowHeadline}>{headline}</div>
-      <div style={rowContact}>
-        {contactParts.map((line, li) => (
-          <span key={li} style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>
-            {line}
-          </span>
-        ))}
-      </div>
+      {headline ? (
+        <div
+          style={{
+            fontSize: 12.5,
+            fontWeight: 500,
+            lineHeight: 1.45,
+            marginBottom: 8,
+            color: C.text,
+          }}
+        >
+          {headline}
+        </div>
+      ) : null}
+      {contactBlock(contactLine)}
     </div>
   )
 }
@@ -321,7 +389,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         <div
           key={`b-${nodes.length}`}
           style={{
-            margin: '0 0 14px 0',
+            margin: '0 0 12px 0',
             fontSize: 11.5,
             lineHeight: 1.65,
             color: C.text,
@@ -329,8 +397,13 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         >
           {bulletBuf.map((item, i) => (
             <span key={i}>
-              {i > 0 && <span style={{ color: C.muted, userSelect: 'none' }}> · </span>}
-              {item}
+              {item.trim()}
+              {i < bulletBuf.length - 1 && (
+                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                  {' '}
+                  •{' '}
+                </span>
+              )}
             </span>
           ))}
         </div>,
@@ -384,8 +457,8 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
             letterSpacing: '0.11em',
             textTransform: 'uppercase',
             color: C.text,
-            marginTop: nodes.length ? 18 : 0,
-            marginBottom: 8,
+            marginTop: nodes.length ? 14 : 0,
+            marginBottom: 6,
             paddingBottom: 5,
             borderBottom: `1px solid ${C.borderStrong}`,
           }}
@@ -413,7 +486,8 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         <p
           key={`p-${nodes.length}`}
           style={{
-            margin: '0 0 11px',
+            margin: '0 auto 10px',
+            maxWidth: '100%',
             fontSize: 11.5,
             lineHeight: 1.48,
             color: C.text,
@@ -430,12 +504,13 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
   return (
     <article
       style={{
-        padding: '48px 48px 40px',
+        padding: '28px 32px 24px',
         background: paperBg,
         border: `1px solid ${C.border}`,
         borderRadius: 10,
         boxSizing: 'border-box',
-        maxWidth: '100%',
+        width: '100%',
+        maxWidth: 'min(100%, 680px)',
         margin: '0 auto',
         overflowX: 'auto',
         fontFamily: "'DM Sans', sans-serif",
@@ -641,10 +716,10 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown):\n' +
-        '- Header before the first section: put (1) full name on line 1, (2) professional headline or title on line 2, (3) contact on line 3 — one line, items separated by | or · (email, phone, city, LinkedIn as applicable). If the source has no separate headline, line 2 may repeat the target title phrase; never omit a clear headline line between name and contact when both exist in the source.\n' +
-        '- Section titles alone in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
-        '- Blank line between sections.\n' +
-        '- Bullet lines start with "- ". In SKILLS, one concise skill per bullet line (short phrase); no long wrapped paragraphs in that section.\n' +
+        '- Header before SUMMARY: line 1 = full name; lines before the final header line = headline/title (if several phrases, put them on one line separated by | ); final line of the header = contact only — email, phone, city, LinkedIn, portfolio URLs, separated by | or · when multiple. Use full https:// URLs for websites when present in the source.\n' +
+        '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, then SKILLS, then EXPERIENCE, then PROJECTS, then EDUCATION & CERTIFICATIONS.\n' +
+        '- Aim for one page for entry-level / early-career candidates: concise bullets, tight wording, no redundancy.\n' +
+        '- Blank line between sections. Bullet lines start with "- ". In SKILLS, one skill per "- " line (short phrase).\n' +
         '- No emoji, tables, or decorative characters.\n' +
         'Return ONLY the resume text.'
 
@@ -1545,8 +1620,9 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           </button>
         </div>
       )}
-      <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:16, justifyContent:'flex-end' }}>
+      <div style={{ marginTop:14, display:'flex', alignItems:'center', gap:12, justifyContent:'flex-end', flexWrap:'wrap' }}>
   {loading && <div style={{ display:'flex', alignItems:'center', gap:10, color:C.muted, fontSize:13, marginRight:'auto' }}><Dots />{loadMsg}</div>}
+  <span style={{ fontSize:15, fontWeight:600, color:C.text, fontFamily:"'DM Sans', sans-serif", marginRight:4 }}>Start</span>
   <button
     onClick={() => analyze(false)}
     disabled={loading}
