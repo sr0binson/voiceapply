@@ -216,6 +216,88 @@ function resumeLineLooksSection(trimmed) {
   )
 }
 
+function resumeSectionIsSkills(headerLine) {
+  const u = String(headerLine || '').toUpperCase()
+  return /\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)
+}
+
+/** Name / headline / contact stacked and centered; Skills bullets render inline with · and wrap. */
+function TailoredResumeFirstHeader({ paraLines }) {
+  const lines = paraLines.map(l => l.trim()).filter(Boolean)
+  if (!lines.length) return null
+  const rowHeadline = {
+    fontSize: 12,
+    fontWeight: 600,
+    letterSpacing: '0.02em',
+    marginBottom: 6,
+    lineHeight: 1.35,
+    color: C.text,
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    maxWidth: '100%',
+  }
+  const rowContact = {
+    display: 'flex',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: '0 10px',
+    rowGap: 4,
+    fontSize: 11.5,
+    lineHeight: 1.48,
+    color: C.text,
+  }
+  if (lines.length === 1) {
+    return (
+      <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
+        <div style={{ ...rowHeadline, marginBottom: 0 }}>{lines[0]}</div>
+      </div>
+    )
+  }
+  if (lines.length === 2) {
+    return (
+      <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
+        <div style={rowHeadline}>{lines[0]}</div>
+        <div style={rowContact}>
+          <span style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>{lines[1]}</span>
+        </div>
+      </div>
+    )
+  }
+  const name = lines[0]
+  const headline = lines[1]
+  const contactParts = lines.slice(2)
+  return (
+    <div style={{ textAlign: 'center', margin: '0 auto 14px', maxWidth: '100%' }}>
+      <div
+        style={{
+          fontSize: 13,
+          fontWeight: 700,
+          letterSpacing: '0.04em',
+          marginBottom: 4,
+          lineHeight: 1.25,
+          color: C.text,
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          maxWidth: '100%',
+        }}
+      >
+        {name}
+      </div>
+      <div style={rowHeadline}>{headline}</div>
+      <div style={rowContact}>
+        {contactParts.map((line, li) => (
+          <span key={li} style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>
+            {line}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 /** ~0.5in outer padding; section headers + bullet lists; merged body lines to avoid odd gaps */
 function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
   const body = String(text || '').trim()
@@ -230,26 +312,49 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
   const nodes = []
   let bulletBuf = []
   let isFirstContactBlock = true
+  /** Section active for bullet list being built ('skills' uses inline · layout). */
+  let resumeSectionKind = 'other'
   const flushBullets = () => {
     if (!bulletBuf.length) return
-    nodes.push(
-      <ul
-        key={`b-${nodes.length}`}
-        style={{
-          margin: '0 0 14px 0',
-          padding: '0 0 0 1.1em',
-          listStyleType: 'disc',
-          listStylePosition: 'outside',
-          fontSize: 11.5,
-          lineHeight: 1.48,
-          color: C.text,
-        }}
-      >
-        {bulletBuf.map((item, i) => (
-          <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>{item}</li>
-        ))}
-      </ul>,
-    )
+    if (resumeSectionKind === 'skills') {
+      nodes.push(
+        <div
+          key={`b-${nodes.length}`}
+          style={{
+            margin: '0 0 14px 0',
+            fontSize: 11.5,
+            lineHeight: 1.65,
+            color: C.text,
+          }}
+        >
+          {bulletBuf.map((item, i) => (
+            <span key={i}>
+              {i > 0 && <span style={{ color: C.muted, userSelect: 'none' }}> · </span>}
+              {item}
+            </span>
+          ))}
+        </div>,
+      )
+    } else {
+      nodes.push(
+        <ul
+          key={`b-${nodes.length}`}
+          style={{
+            margin: '0 0 14px 0',
+            padding: '0 0 0 1.1em',
+            listStyleType: 'disc',
+            listStylePosition: 'outside',
+            fontSize: 11.5,
+            lineHeight: 1.48,
+            color: C.text,
+          }}
+        >
+          {bulletBuf.map((item, i) => (
+            <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>{item}</li>
+          ))}
+        </ul>,
+      )
+    }
     bulletBuf = []
   }
   let i = 0
@@ -269,6 +374,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     }
     flushBullets()
     if (resumeLineLooksSection(trimmed)) {
+      resumeSectionKind = resumeSectionIsSkills(trimmed) ? 'skills' : 'other'
       nodes.push(
         <div
           key={`s-${nodes.length}`}
@@ -302,26 +408,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
     }
     nodes.push(
       isFirstContactBlock ? (
-        <div
-          key={`p-${nodes.length}`}
-          style={{
-            margin: '0 auto 11px',
-            maxWidth: '100%',
-            display: 'flex',
-            flexWrap: 'wrap',
-            justifyContent: 'center',
-            alignItems: 'center',
-            gap: '0 12px',
-            rowGap: 4,
-            fontSize: 11.5,
-            lineHeight: 1.48,
-            color: C.text,
-          }}
-        >
-          {paraLines.map((line, li) => (
-            <span key={li} style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>{line.trim()}</span>
-          ))}
-        </div>
+        <TailoredResumeFirstHeader key={`p-${nodes.length}`} paraLines={paraLines} />
       ) : (
         <p
           key={`p-${nodes.length}`}
@@ -554,10 +641,10 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown):\n' +
-        '- Name and contact on one visual line where possible (separate contact fragments with spaces or | ); keep LinkedIn/one site typical; extra links may wrap only if needed.\n' +
+        '- Header before the first section: put (1) full name on line 1, (2) professional headline or title on line 2, (3) contact on line 3 — one line, items separated by | or · (email, phone, city, LinkedIn as applicable). If the source has no separate headline, line 2 may repeat the target title phrase; never omit a clear headline line between name and contact when both exist in the source.\n' +
         '- Section titles alone in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
         '- Blank line between sections.\n' +
-        '- Bullet lines start with "- ".\n' +
+        '- Bullet lines start with "- ". In SKILLS, one concise skill per bullet line (short phrase); no long wrapped paragraphs in that section.\n' +
         '- No emoji, tables, or decorative characters.\n' +
         'Return ONLY the resume text.'
 
