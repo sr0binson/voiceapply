@@ -1169,7 +1169,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     }
     if (autoGenAttemptedRef.current === storageKey) return
     autoGenAttemptedRef.current = storageKey
-    setResumeVar(0)
     generateTailoredResume(false)
   }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
 
