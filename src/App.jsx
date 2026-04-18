@@ -291,6 +291,34 @@ function normalizeHeadlineDisplay(headline) {
   return h
 }
 
+/**
+ * Tailored resume models often put the professional headline on line 1 and the person's name on line 2.
+ * We always render line 1 with 25px (name slot) and headline with 12px — so we must detect and swap semantics.
+ */
+function headlineAppearsBeforeName(firstLine, secondLine) {
+  const a = String(firstLine || '').trim()
+  const b = String(secondLine || '').trim()
+  if (!a || !b) return false
+  const pipesA = (a.match(/\|/g) || []).length
+  const pipesB = (b.match(/\|/g) || []).length
+  if (pipesA >= 1 && pipesB === 0) return true
+  if (pipesA > pipesB) return true
+  if (a.length > b.length + 12 && pipesA >= pipesB) return true
+  return false
+}
+
+/** Returns { name, headlineParts } from lines above contact (last line already removed). */
+function resolveNameHeadlineSlots(innerLines) {
+  const inner = innerLines.map(l => String(l || '').trim()).filter(Boolean)
+  if (inner.length === 0) return { name: '', headlineParts: [] }
+  if (inner.length === 1) return { name: inner[0], headlineParts: [] }
+  const [a, b, ...rest] = inner
+  if (headlineAppearsBeforeName(a, b)) {
+    return { name: b, headlineParts: [a, ...rest] }
+  }
+  return { name: a, headlineParts: [b, ...rest] }
+}
+
 /** Contact line only: email + http(s)/www — phones stay plain text (not links, not underlined). */
 const LINKIFY_CONTACT_RE = /(https?:\/\/[^\s|•]+|www\.[^\s|•]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/gi
 
@@ -389,9 +417,9 @@ function TailoredResumeFirstHeader({ paraLines }) {
     )
   }
   const contactLine = lines[lines.length - 1]
-  /** Prompt order: line 1 = name, middle = headline, last = contact (sizes are fixed; do not swap rows). */
-  const name = lines[0]
-  const headline = normalizeHeadlineDisplay(lines.slice(1, -1).join(' | '))
+  const inner = lines.slice(0, -1)
+  const { name, headlineParts } = resolveNameHeadlineSlots(inner)
+  const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
   return (
     <div style={{ width: '100%', margin: '0 0 16px', textAlign: 'left', fontSize: '12px' }}>
       <div style={{ ...nameStyle, marginBottom: 4 }}>{name}</div>
