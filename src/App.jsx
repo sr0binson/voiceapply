@@ -261,13 +261,37 @@ function splitTitleAndDates(line) {
   return { title: t, dates: null }
 }
 
-function normalizeContactForDisplay(raw) {
+/** Classify a single contact fragment for strict display order. */
+function classifyContactSegment(seg) {
+  const s = String(seg || '').trim()
+  if (!s) return null
+  if (/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(s)) return 'email'
+  if (/https?:\/\//i.test(s) || /^www\./i.test(s)) {
+    if (/linkedin\.com/i.test(s)) return 'linkedin'
+    return 'portfolio'
+  }
+  if (/\d{3}[-.\s)]?\d{3}[-.\s]?\d{4}/.test(s) || /\(\d{3}\)\s*\d{3}/.test(s) || /\b\d{3}-\d{3}-\d{4}\b/.test(s)) return 'phone'
+  return 'location'
+}
+
+/** location → phone → email → LinkedIn → portfolio (other https after LinkedIn). */
+function orderContactLineForDisplay(raw) {
   const s = Array.isArray(raw) ? raw.join(' | ') : String(raw || '')
-  return s
-    .split(/\s*[|•]\s*/)
-    .map(x => x.trim())
-    .filter(Boolean)
-    .join('  •  ')
+  const segments = s.split(/\s*[|•]\s*/).map(x => x.trim()).filter(Boolean)
+  const loc = []
+  const phone = []
+  const email = []
+  const li = []
+  const port = []
+  for (const seg of segments) {
+    const k = classifyContactSegment(seg)
+    if (k === 'location') loc.push(seg)
+    else if (k === 'phone') phone.push(seg)
+    else if (k === 'email') email.push(seg)
+    else if (k === 'linkedin') li.push(seg)
+    else if (k === 'portfolio') port.push(seg)
+  }
+  return [...loc, ...phone, ...email, ...li, ...port].join('  •  ')
 }
 
 /** Multiple title phrases → single line with pipes. */
@@ -402,7 +426,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
   const contactBlock = (raw) => {
-    const joined = normalizeContactForDisplay(raw)
+    const joined = orderContactLineForDisplay(raw)
     return (
       <div
         style={{
@@ -420,7 +444,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
   }
   /** Explicit px + fontWeight so headline can never visually exceed name. */
   const nameStyle = {
-    fontSize: '25px',
+    fontSize: '20px',
     fontWeight: 700,
     lineHeight: 1.2,
     color: C.resumeName,
@@ -924,7 +948,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
-        '- Header (before SUMMARY): The very first line of the entire resume must be the candidate\'s full name and nothing else. The second line must be the professional headline only. Do not put the headline before the name under any circumstances. CRITICAL: Line 1 = full name only (e.g. Stacy Robinson). Line 2 = professional headline (e.g. IT Support Technician | Device Management | CompTIA A+ Candidate). Never swap these. Never put the headline first. Use | between headline phrases. Last line of the header block = contact only (email/URL/phone/location). Do not insert a blank line between name, headline, and contact — a blank after line 2 splits the header and breaks the layout.\n' +
+        '- Header (before SUMMARY): The very first line of the entire resume must be the candidate\'s full name and nothing else. The second line must be the professional headline only. Do not put the headline before the name under any circumstances. CRITICAL: Line 1 = full name only (e.g. Stacy Robinson). Line 2 = professional headline (e.g. IT Support Technician | Device Management | CompTIA A+ Candidate). Never swap these. Never put the headline first. Use | between headline phrases. Last line of the header block = contact only in this exact order: location, phone, email, LinkedIn URL, portfolio URL (if present). Do not insert a blank line between name, headline, and contact — a blank after line 2 splits the header and breaks the layout.\n' +
         '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, SKILLS, EXPERIENCE, PROJECTS, EDUCATION & CERTIFICATIONS.\n' +
         '- EXPERIENCE: For each role, line 1 = job title (bold in UI) then TWO OR MORE spaces (or a tab) then the date range (e.g. March 2021 – Present). Line 2 = Company — Location (plain). Then bullet lines with "- " for achievements. Repeat for each job.\n' +
         '- Aim for one page for entry-level / early-career: concise bullets, tight wording.\n' +
