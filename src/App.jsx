@@ -301,8 +301,9 @@ function headlineAppearsBeforeName(firstLine, secondLine) {
   if (!a || !b) return false
   const pipesA = (a.match(/\|/g) || []).length
   const pipesB = (b.match(/\|/g) || []).length
+  /** Headline often has | ; person's name almost never does. */
   if (pipesA >= 1 && pipesB === 0) return true
-  if (pipesA > pipesB) return true
+  /** Long first line, short second → typical title block then name. */
   if (a.length > b.length + 12 && pipesA >= pipesB) return true
   return false
 }
@@ -317,6 +318,18 @@ function resolveNameHeadlineSlots(innerLines) {
     return { name: b, headlineParts: [a, ...rest] }
   }
   return { name: a, headlineParts: [b, ...rest] }
+}
+
+/** True if this line is clearly contact (email, URL, phone) — not a headline. */
+function lineLooksLikeContact(line) {
+  const s = String(line || '').trim()
+  if (!s) return false
+  if (/[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}/.test(s)) return true
+  if (/https?:\/\//i.test(s) || /\bwww\.[^\s]+/i.test(s)) return true
+  if (/\d{3}[-.\s]?\d{3}[-.\s]?\d{4}/.test(s)) return true
+  if (/\b(linkedin\.com|github\.com|portfolio)\b/i.test(s)) return true
+  if (/•/.test(s) && (/@|https?:|www\.|\d{3}-\d{3}/.test(s) || s.length > 24)) return true
+  return false
 }
 
 /** Contact line only: email + http(s)/www — phones stay plain text (not links, not underlined). */
@@ -409,10 +422,21 @@ function TailoredResumeFirstHeader({ paraLines }) {
     )
   }
   if (lines.length === 2) {
+    /** Blank line before contact → only 2 lines in block: often headline then name (not name+contact). */
+    if (lineLooksLikeContact(lines[1])) {
+      return (
+        <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
+          <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
+          {contactBlock(lines[1])}
+        </div>
+      )
+    }
+    const { name, headlineParts } = resolveNameHeadlineSlots(lines)
+    const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
     return (
       <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left', fontSize: '12px' }}>
-        <div style={{ ...nameStyle, marginBottom: 6 }}>{lines[0]}</div>
-        {contactBlock(lines[1])}
+        <div style={{ ...nameStyle, marginBottom: headline ? 4 : 0 }}>{name}</div>
+        {headline ? <div style={headlineStyle}>{headline}</div> : null}
       </div>
     )
   }
@@ -868,7 +892,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
-        '- Header before SUMMARY (strict order — line 1 is always shown LARGEST as the name; headline lines are SMALLER): line 1 = candidate full name ONLY; middle line(s) = professional headline with | between phrases (example: IT Support | Help Desk | Automation); last line = contact ONLY: City/Location • phone 555-555-5555 • email • https URLs. Never put the headline before the name on line 1.\n' +
+        '- Header before SUMMARY (UI: line 1 = LARGEST name 25px; next lines = SMALLER headline 12px; last header line = contact): line 1 = full name ONLY; next line(s) = professional headline with | between phrases; final header line = contact (email/URL/phone/location). Do not put a blank line between name, headline, and contact — a blank after line 2 splits the header and breaks the layout.\n' +
         '- Section order (skip empty sections; ALL-CAPS section title alone on its own line): SUMMARY, SKILLS, EXPERIENCE, PROJECTS, EDUCATION & CERTIFICATIONS.\n' +
         '- EXPERIENCE: For each role, line 1 = job title (bold in UI) then TWO OR MORE spaces (or a tab) then the date range (e.g. March 2021 – Present). Line 2 = Company — Location (plain). Then bullet lines with "- " for achievements. Repeat for each job.\n' +
         '- Aim for one page for entry-level / early-career: concise bullets, tight wording.\n' +
