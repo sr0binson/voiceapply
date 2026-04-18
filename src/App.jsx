@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo, useEffect } from 'react'
+import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { jsPDF } from 'jspdf'
 
 const NAV = ['Analyze', 'Documents', 'VoicePrint', 'History']
@@ -316,12 +316,14 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const [tailored, setTailored] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const autoGenAttemptedRef = useRef(null)
 
   useEffect(() => {
     setMainOpen(false)
     setConnectOpen(false)
     setCoverOpen(false)
     setResumeOpen(false)
+    autoGenAttemptedRef.current = null
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
     } catch {
@@ -335,15 +337,10 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const jobLine = `${r?.jobTitle || 'Role'} · ${r?.company || 'Company'}`
   const sourceResume = String(voiceProfile?.resume || '').trim()
   const canGenerate = !!sourceResume && (!!jdBlock || !!(r?.jobTitle || r?.company))
+  const gapsLine = (Array.isArray(r?.missingSkills) ? r.missingSkills : []).filter(Boolean).join(', ')
+  const transferNotes = String(r?.transferableNotes || '').trim()
 
-  function persistTailored(s) {
-    setTailored(s)
-    try {
-      sessionStorage.setItem(storageKey, s)
-    } catch { /* ignore */ }
-  }
-
-  async function generateTailoredResume() {
+  const generateTailoredResume = useCallback(async () => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
       return
@@ -360,21 +357,30 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setErr('')
     try {
       const voiceSec = voiceProfile?.analysis
-        ? '\n\nVOICE / STYLE (match tone; no emojis):\n' + String(voiceProfile.analysis).slice(0, 1400)
+        ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
+        : ''
+      const gapsSec = gapsLine
+        ? '\n\nSKILL GAPS IDENTIFIED FOR THIS JOB (honest framing only — rephrase existing experience toward these themes; do NOT claim new tools, years, or credentials):\n' + gapsLine + '\n'
+        : ''
+      const transferSec = transferNotes
+        ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 6000) + '\n'
         : ''
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
-        (jdBlock ? 'JOB POSTING / CONTEXT:\n' + jdBlock.slice(0, 8000) + '\n\n' : '') +
-        'SOURCE RESUME — facts only; do not invent employers, dates, degrees, or skills:\n' +
+        (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 8000) + '\n\n' : '') +
+        gapsSec +
+        transferSec +
+        'SOURCE RESUME — sole source of truth for facts (employers, dates, titles, education, tools, metrics). Do not add, remove, or alter facts:\n' +
         sourceResume.slice(0, 12000) +
         voiceSec +
-        '\n\nRewrite for this job. FORMAT (plain text only, no markdown):\n' +
-        '- Start with name and contact lines from the source if present.\n' +
-        '- Section titles alone on one line in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
-        '- One blank line between sections.\n' +
-        '- Every bullet line must start with "- " (hyphen + space). Keep bullets one clause when possible.\n' +
-        '- No tables, tabs, emoji, or decorative characters.\n' +
-        'Return ONLY the resume.'
+        '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
+        'FORMAT (plain text, no markdown):\n' +
+        '- Name and contact from the source if present.\n' +
+        '- Section titles alone in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
+        '- Blank line between sections.\n' +
+        '- Bullet lines start with "- ".\n' +
+        '- No emoji, tables, or decorative characters.\n' +
+        'Return ONLY the resume text.'
 
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method: 'POST',
@@ -388,7 +394,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
           model: 'claude-sonnet-4-20250514',
           max_tokens: 3500,
           system:
-            'You tailor resumes for specific jobs using only the source resume. Never fabricate. If job context is thin, lean on role title and honest emphasis only.',
+            'You edit resumes for specific job postings. Facts may come ONLY from the candidate source resume text supplied by the user. The job description and skill-gap notes guide emphasis and honest transferable framing; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
           messages: [{ role: 'user', content: userContent }],
         }),
       })
@@ -398,13 +404,31 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       }
       const data = await res.json()
       const text = data.content.map(b => b.text || '').join('').trim()
-      persistTailored(text)
+      setTailored(text)
+      try {
+        sessionStorage.setItem(storageKey, text)
+      } catch { /* ignore */ }
     } catch (e) {
       setErr(e.message || 'Something went wrong.')
     } finally {
       setLoading(false)
     }
-  }
+  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
+
+  useEffect(() => {
+    if (!resumeOpen || !canGenerate || !keySaved || !apiKey) return
+    let cached = ''
+    try {
+      cached = sessionStorage.getItem(storageKey) || ''
+    } catch { /* ignore */ }
+    if (cached.trim()) {
+      setTailored(t => (t.trim() ? t : cached))
+      return
+    }
+    if (autoGenAttemptedRef.current === storageKey) return
+    autoGenAttemptedRef.current = storageKey
+    generateTailoredResume()
+  }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
 
@@ -436,7 +460,18 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     >
       <button
         type="button"
-        onClick={() => setMainOpen(v => !v)}
+        onClick={() =>
+          setMainOpen(v => {
+            const next = !v
+            if (next) setResumeOpen(true)
+            else {
+              setResumeOpen(false)
+              setCoverOpen(false)
+              setConnectOpen(false)
+            }
+            return next
+          })
+        }
         style={{
           width: '100%',
           display: 'flex',
@@ -461,45 +496,20 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       </button>
       {mainOpen && (
         <div style={{ paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
-          {showOutreach && (
-            <div style={{ marginBottom: 4 }}>
-              <button type="button" onClick={() => setConnectOpen(v => !v)} style={subBtn}>
-                <span>Connect · outreach</span>
-                <span style={collapsibleChevronStyle(connectOpen)} aria-hidden>▶</span>
-              </button>
-              {connectOpen && (
-                <div style={{ padding: '12px 0 16px', borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
-                    <CopyBtn text={r.outreachMessage} />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          {showCoverLetter && (
-            <div style={{ marginBottom: 4 }}>
-              <button type="button" onClick={() => setCoverOpen(v => !v)} style={subBtn}>
-                <span>Cover letter</span>
-                <span style={collapsibleChevronStyle(coverOpen)} aria-hidden>▶</span>
-              </button>
-              {coverOpen && (
-                <div style={{ padding: '12px 0 16px', borderBottom: `1px solid ${C.border}` }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
-                    <CopyBtn text={r.coverLetter} />
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-          <div>
-            <button type="button" onClick={() => setResumeOpen(v => !v)} style={{ ...subBtn, borderBottom: resumeOpen ? `1px solid ${C.border}` : 'none' }}>
+          <div style={{ marginBottom: 4 }}>
+            <button
+              type="button"
+              onClick={() => setResumeOpen(v => !v)}
+              style={{
+                ...subBtn,
+                borderBottom: resumeOpen || showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none',
+              }}
+            >
               <span>Tailored resume</span>
               <span style={collapsibleChevronStyle(resumeOpen)} aria-hidden>▶</span>
             </button>
             {resumeOpen && (
-              <div style={{ padding: '12px 0 8px' }}>
+              <div style={{ padding: '12px 0 8px', borderBottom: showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none' }}>
                 {loading && (
                   <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
                     <Dots /> Drafting your resume for this role…
@@ -523,6 +533,38 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
               </div>
             )}
           </div>
+          {showCoverLetter && (
+            <div style={{ marginBottom: 4 }}>
+              <button type="button" onClick={() => setCoverOpen(v => !v)} style={{ ...subBtn, borderBottom: coverOpen || showOutreach ? `1px solid ${C.border}` : 'none' }}>
+                <span>Cover letter</span>
+                <span style={collapsibleChevronStyle(coverOpen)} aria-hidden>▶</span>
+              </button>
+              {coverOpen && (
+                <div style={{ padding: '12px 0 16px', borderBottom: showOutreach ? `1px solid ${C.border}` : 'none' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
+                    <CopyBtn text={r.coverLetter} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+          {showOutreach && (
+            <div style={{ marginBottom: 4 }}>
+              <button type="button" onClick={() => setConnectOpen(v => !v)} style={{ ...subBtn, borderBottom: 'none' }}>
+                <span>Connect · outreach</span>
+                <span style={collapsibleChevronStyle(connectOpen)} aria-hidden>▶</span>
+              </button>
+              {connectOpen && (
+                <div style={{ padding: '12px 0 16px' }}>
+                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
+                    <CopyBtn text={r.outreachMessage} />
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
     </div>
