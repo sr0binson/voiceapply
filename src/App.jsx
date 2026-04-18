@@ -28,7 +28,7 @@ const C = {
   connectPanelBg: 'rgba(122,95,60,0.09)',
   connectPanelBorder: 'rgba(122,95,60,0.24)',
   connectPanelTitle: '#5c4a26',
-  kitResumeBg: '#faf9f7',
+  kitResumeBg: '#faf9f6',
   /** Edit textarea in myResume+ tailored resume — same greige family as kitResumeBg, one step lighter */
   kitResumeTextareaBg: '#fdfcfa',
   kitCoverBg: '#f3f1ed',
@@ -142,6 +142,83 @@ function Dots() {
   )
 }
 
+/** jsPDF: letter page fill — very light greige (matches tailored resume preview). */
+function pdfResumePageBackground(doc) {
+  const w = doc.internal.pageSize.getWidth()
+  const h = doc.internal.pageSize.getHeight()
+  doc.setFillColor(250, 249, 246)
+  doc.rect(0, 0, w, h, 'F')
+}
+
+function pdfNormalizeResumeUrl(s) {
+  const t = String(s || '').trim()
+  if (!t) return ''
+  if (/^https?:\/\//i.test(t)) return t
+  if (/^mailto:/i.test(t)) return t
+  if (/^www\./i.test(t)) return `https://${t}`
+  return `https://${t}`
+}
+
+/** Contact row: location • phone • email • LinkedIn • portfolio (portfolio omitted if empty). Links cyan #4ecdc4, not underlined. */
+function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
+  const parts = []
+  if (String(data.location || '').trim()) parts.push({ text: String(data.location).trim() })
+  if (String(data.phone || '').trim()) parts.push({ text: String(data.phone).trim() })
+  if (String(data.email || '').trim()) {
+    const em = String(data.email).trim()
+    parts.push({ text: em, url: `mailto:${em}` })
+  }
+  if (String(data.linkedin || '').trim()) {
+    const raw = String(data.linkedin).trim()
+    parts.push({ text: raw, url: pdfNormalizeResumeUrl(raw) })
+  }
+  if (String(data.portfolio || '').trim()) {
+    const raw = String(data.portfolio).trim()
+    parts.push({ text: raw, url: pdfNormalizeResumeUrl(raw) })
+  }
+  if (!parts.length) return startY
+
+  const sep = '  •  '
+  const cyan = [78, 205, 196]
+  const muted = [100, 100, 96]
+  let x = margin
+  let y = startY
+  const maxX = margin + contentW
+  const fs = 9.5
+  const lineH = fs * 1.28
+  doc.setFontSize(fs)
+  doc.setFont('helvetica', 'normal')
+
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      doc.setTextColor(...muted)
+      const sw = doc.getTextWidth(sep)
+      if (x + sw > maxX && x > margin) {
+        x = margin
+        y += lineH
+      }
+      doc.text(sep, x, y)
+      x += sw
+    }
+    const label = p.text
+    let w = doc.getTextWidth(label)
+    if (x + w > maxX && x > margin) {
+      x = margin
+      y += lineH
+    }
+    if (p.url) {
+      doc.setTextColor(...cyan)
+      doc.text(label, x, y)
+      doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
+    } else {
+      doc.setTextColor(...muted)
+      doc.text(label, x, y)
+    }
+    x += w
+  })
+  return y + 6
+}
+
 function generateCoverLetterPDF(fullText) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 72, pageW = 612, contentW = pageW - margin * 2
@@ -164,7 +241,14 @@ function generateResumePDF(data) {
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 58, pageW = 612, contentW = pageW - margin * 2
   let y = margin
-  const checkPage = (n=20) => { if (y+n > 730) { doc.addPage(); y = margin } }
+  pdfResumePageBackground(doc)
+  const checkPage = (n = 20) => {
+    if (y + n > 730) {
+      doc.addPage()
+      pdfResumePageBackground(doc)
+      y = margin
+    }
+  }
   const addLine = (text, opts={}) => {
     if (!text) return
     const { size=10.5, bold=false, color=[28,28,26], lineH=15, indent=0 } = opts
@@ -180,10 +264,11 @@ function generateResumePDF(data) {
   doc.setFontSize(25); doc.setFont('helvetica','bold'); doc.setTextColor(28,28,26)
   doc.text(data.name||'', margin, y); y += 24
   if (data.tagline) { doc.setFontSize(12); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,76); doc.text(data.tagline, margin, y); y += 16 }
-  doc.setFontSize(9.5); doc.setFont('helvetica','normal'); doc.setTextColor(100,100,96)
-  const cp = [data.location,data.phone,data.email,data.linkedin,data.portfolio].filter(Boolean)
-  if (cp.length) { doc.text(cp.join('  •  '), margin, y); y += 6 }
-  doc.setDrawColor(200,200,196); doc.setLineWidth(0.5); doc.line(margin, y, pageW-margin, y)
+  y = pdfDrawResumeContactLine(doc, margin, contentW, y, data)
+  doc.setDrawColor(200, 200, 196)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageW - margin, y)
+  y += 4
   if (data.summary) { sectionHeader('Summary'); addLine(data.summary, {lineH:16}) }
   if (data.skills) { sectionHeader('Skills'); addLine(data.skills, {lineH:16}) }
   sectionHeader('Experience')
