@@ -32,7 +32,7 @@ const C = {
   kitCoverBg: '#f3f1ed',
   /** Tailored resume typography (darkest name → lighter headline → section titles) */
   resumeName: '#0a0a09',
-  resumeHeadline: '#4a4a44',
+  resumeHeadline: '#6a6a64',
   resumeSectionTitle: '#2c2c28',
   resumeBody: '#1c1c1a',
   resumeLinkCyan: '#157a73',
@@ -227,6 +227,8 @@ function resumeSectionId(headerLine) {
   const u = String(headerLine || '').toUpperCase()
   if (/\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)) return 'skills'
   if (/\bEXPERIENCE\b/.test(u) || /\bEMPLOYMENT\b/.test(u) || /\bWORK HISTORY\b/.test(u)) return 'experience'
+  if (/\bPROJECTS?\b/.test(u)) return 'projects'
+  if (/\bEDUCATION\b/.test(u) || /\bCERTIFICATIONS?\b/.test(u) || /\bACADEMIC\b/.test(u)) return 'education'
   return 'other'
 }
 
@@ -289,9 +291,16 @@ function normalizeHeadlineDisplay(headline) {
   return h
 }
 
-/** Contact line only: URLs, email, www., and 555-555-5555-style phones → tel: */
-const LINKIFY_CONTACT_RE =
-  /(https?:\/\/[^\s|•]+|www\.[^\s|•]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,}|\b\d{3}-\d{3}-\d{4}\b)/gi
+/** Contact line only: email + http(s)/www — phones stay plain text (not links, not underlined). */
+const LINKIFY_CONTACT_RE = /(https?:\/\/[^\s|•]+|www\.[^\s|•]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/gi
+
+const linkStyleContact = {
+  color: C.resumeLinkCyan,
+  textDecoration: 'underline',
+  display: 'inline-block',
+  whiteSpace: 'nowrap',
+  maxWidth: '100%',
+}
 
 function linkifyContactLine(text) {
   const s = String(text || '')
@@ -304,17 +313,15 @@ function linkifyContactLine(text) {
     if (m.index > last) out.push(s.slice(last, m.index))
     const token = m[0]
     const isEmail = /^[\w.%+-]+@/.test(token)
-    const isPhone = /^\d{3}-\d{3}-\d{4}$/.test(token)
     let href = token
     if (isEmail) href = `mailto:${token}`
-    else if (isPhone) href = `tel:${token.replace(/-/g, '')}`
     else if (/^www\./i.test(token)) href = `https://${token}`
     out.push(
       <a
         key={`lc-${m.index}-${out.length}`}
         href={href}
-        {...(isEmail || isPhone ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
-        style={{ color: C.resumeLinkCyan, textDecoration: 'underline', wordBreak: 'break-all' }}
+        {...(isEmail ? {} : { target: '_blank', rel: 'noopener noreferrer' })}
+        style={linkStyleContact}
       >
         {token}
       </a>,
@@ -325,7 +332,7 @@ function linkifyContactLine(text) {
   return out.length ? out : s
 }
 
-/** Name (bold 20 darkest), headline (11 bold, pipes), contact Location • phone • email • links. */
+/** Name (bold 25 darkest), headline (12 bold medium grey), contact — links only for email & sites. */
 function TailoredResumeFirstHeader({ paraLines }) {
   const lines = paraLines.map(l => l.trim()).filter(Boolean)
   if (!lines.length) return null
@@ -338,7 +345,8 @@ function TailoredResumeFirstHeader({ paraLines }) {
           lineHeight: 1.55,
           fontWeight: 400,
           color: C.resumeBody,
-          wordBreak: 'break-word',
+          wordBreak: 'normal',
+          overflowWrap: 'break-word',
         }}
       >
         {linkifyContactLine(joined)}
@@ -346,14 +354,14 @@ function TailoredResumeFirstHeader({ paraLines }) {
     )
   }
   const nameStyle = {
-    fontSize: 20,
+    fontSize: 25,
     fontWeight: 700,
     lineHeight: 1.2,
     color: C.resumeName,
     letterSpacing: '-0.02em',
   }
   const headlineStyle = {
-    fontSize: 11,
+    fontSize: 12,
     fontWeight: 700,
     lineHeight: 1.45,
     color: C.resumeHeadline,
@@ -436,6 +444,33 @@ function TailoredExperienceParagraph({ paraLines }) {
           {line}
         </div>
       ))}
+    </div>
+  )
+}
+
+/** Projects / Education: first line is title (bold); following lines body. */
+function TailoredTitleBodyParagraph({ paraLines }) {
+  if (!paraLines.length) return null
+  const first = paraLines[0].trim()
+  const rest = paraLines.slice(1).map(l => l.trim()).filter(Boolean)
+  return (
+    <div style={{ margin: '0 0 12px', textAlign: 'left' }}>
+      <div
+        style={{
+          fontWeight: 700,
+          fontSize: 11,
+          color: C.resumeBody,
+          lineHeight: 1.35,
+          marginBottom: rest.length ? 4 : 0,
+        }}
+      >
+        {first}
+      </div>
+      {rest.length > 0 ? (
+        <div style={{ fontSize: 11, fontWeight: 400, lineHeight: 1.45, color: C.resumeBody, whiteSpace: 'pre-line' }}>
+          {rest.join('\n')}
+        </div>
+      ) : null}
     </div>
   )
 }
@@ -532,8 +567,10 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
             textTransform: 'uppercase',
             color: C.resumeSectionTitle,
             marginTop: nodes.length ? 12 : 0,
-            marginBottom: 0,
-            paddingBottom: 2,
+            marginBottom: 8,
+            padding: 0,
+            paddingBottom: 0,
+            lineHeight: 1.15,
             borderBottom: `1px solid ${C.borderStrong}`,
           }}
         >
@@ -558,6 +595,8 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
         <TailoredResumeFirstHeader key={`p-${nodes.length}`} paraLines={paraLines} />
       ) : activeSectionId === 'experience' ? (
         <TailoredExperienceParagraph key={`p-${nodes.length}`} paraLines={paraLines} />
+      ) : activeSectionId === 'projects' || activeSectionId === 'education' ? (
+        <TailoredTitleBodyParagraph key={`p-${nodes.length}`} paraLines={paraLines} />
       ) : (
         <p
           key={`p-${nodes.length}`}
