@@ -471,9 +471,17 @@ function TailoredResumeFirstHeader({ paraLines }) {
   if (lines.length === 2) {
     /** Blank line before contact → only 2 lines in block: often headline then name (not name+contact). */
     if (lineLooksLikeContact(lines[1])) {
-      let { name, headlineParts } = demotePipedNameToHeadline(lines[0], [])
-      console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', { name, headlineParts })
-      const headline = normalizeHeadlineDisplay(headlineParts.join(' | '))
+      let name = ''
+      let headline = ''
+      if (lines[0].includes('|')) {
+        name = ''
+        headline = normalizeHeadlineDisplay(lines[0])
+      } else {
+        const parsed = demotePipedNameToHeadline(lines[0], [])
+        name = parsed.name
+        headline = normalizeHeadlineDisplay(parsed.headlineParts.join(' | '))
+      }
+      console.log('[TailoredResumeFirstHeader] 2-line (name + contact)', { name, headline })
       return (
         <div style={{ width: '100%', margin: '0 0 14px', textAlign: 'left' }}>
           {name ? <div style={{ ...tailoredResumeNameStyle, marginBottom: headline ? 4 : 6 }}>{name}</div> : null}
