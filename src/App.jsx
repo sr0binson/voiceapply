@@ -28,6 +28,8 @@ const C = {
   connectPanelBg: 'rgba(122,95,60,0.09)',
   connectPanelBorder: 'rgba(122,95,60,0.24)',
   connectPanelTitle: '#5c4a26',
+  kitResumeBg: '#faf9f7',
+  kitCoverBg: '#f3f1ed',
 }
 
 function Label({ children }) {
@@ -77,13 +79,48 @@ function Accordion({ title, children }) {
     </div>
   )
 }
-function CopyBtn({ text }) {
+function CopyBtn({ text, style: styleProp = {} }) {
   const [copied, setCopied] = useState(false)
   return (
     <button onClick={() => { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
-      style={{ marginTop: 10, fontSize: 12, padding: '5px 14px', borderRadius: 8, border: `1px solid ${C.border}`, background: C.surface2, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", color: C.muted }}>
+      style={{
+        fontSize: 12, padding: '6px 14px', borderRadius: 8, minHeight: 32, boxSizing: 'border-box',
+        border: `1px solid ${C.border}`, background: C.surface2, cursor: 'pointer', fontFamily: "'DM Sans', sans-serif", color: C.muted,
+        ...styleProp,
+      }}>
       {copied ? '✓ Copied!' : 'Copy'}
     </button>
+  )
+}
+
+const KIT_ACTION_BTN = {
+  fontSize: 12,
+  padding: '6px 14px',
+  minHeight: 32,
+  boxSizing: 'border-box',
+  borderRadius: 8,
+  fontFamily: "'DM Sans', sans-serif",
+  fontWeight: 500,
+  cursor: 'pointer',
+}
+
+function CyanMicroTriangle({ open }) {
+  return (
+    <span
+      style={{
+        display: 'inline-block',
+        width: 0,
+        height: 0,
+        borderTop: '5px solid transparent',
+        borderBottom: '5px solid transparent',
+        borderLeft: `8px solid ${C.cyan}`,
+        transform: open ? 'rotate(90deg)' : 'none',
+        transition: 'transform 0.2s ease',
+        transformOrigin: 'center',
+        flexShrink: 0,
+      }}
+      aria-hidden
+    />
   )
 }
 function Dots() {
@@ -180,7 +217,7 @@ function resumeLineLooksSection(trimmed) {
 }
 
 /** ~0.5in outer padding; section headers + bullet lists; merged body lines to avoid odd gaps */
-function TailoredResumeView({ text }) {
+function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
   const body = String(text || '').trim()
   if (!body) {
     return (
@@ -192,6 +229,7 @@ function TailoredResumeView({ text }) {
   const lines = body.replace(/\r\n/g, '\n').replace(/\r/g, '\n').split('\n')
   const nodes = []
   let bulletBuf = []
+  let isFirstContactBlock = true
   const flushBullets = () => {
     if (!bulletBuf.length) return
     nodes.push(
@@ -263,30 +301,55 @@ function TailoredResumeView({ text }) {
       i++
     }
     nodes.push(
-      <p
-        key={`p-${nodes.length}`}
-        style={{
-          margin: '0 0 11px',
-          fontSize: 11.5,
-          lineHeight: 1.48,
-          color: C.text,
-          whiteSpace: 'pre-line',
-        }}
-      >
-        {paraLines.join('\n')}
-      </p>,
+      isFirstContactBlock ? (
+        <div
+          key={`p-${nodes.length}`}
+          style={{
+            margin: '0 auto 11px',
+            maxWidth: '100%',
+            display: 'flex',
+            flexWrap: 'wrap',
+            justifyContent: 'center',
+            alignItems: 'center',
+            gap: '0 12px',
+            rowGap: 4,
+            fontSize: 11.5,
+            lineHeight: 1.48,
+            color: C.text,
+          }}
+        >
+          {paraLines.map((line, li) => (
+            <span key={li} style={{ whiteSpace: 'nowrap', maxWidth: '100%' }}>{line.trim()}</span>
+          ))}
+        </div>
+      ) : (
+        <p
+          key={`p-${nodes.length}`}
+          style={{
+            margin: '0 0 11px',
+            fontSize: 11.5,
+            lineHeight: 1.48,
+            color: C.text,
+            whiteSpace: 'pre-line',
+          }}
+        >
+          {paraLines.join('\n')}
+        </p>
+      ),
     )
+    isFirstContactBlock = false
   }
   flushBullets()
   return (
     <article
       style={{
         padding: '48px 48px 40px',
-        background: '#fdfdfc',
+        background: paperBg,
         border: `1px solid ${C.border}`,
         borderRadius: 10,
         boxSizing: 'border-box',
         maxWidth: '100%',
+        margin: '0 auto',
         overflowX: 'auto',
         fontFamily: "'DM Sans', sans-serif",
       }}
@@ -307,6 +370,93 @@ function collapsibleChevronStyle(open) {
   }
 }
 
+function kitFetchMessages(apiKey, system, userContent, maxTokens = 3500) {
+  return fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'x-api-key': apiKey,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true',
+    },
+    body: JSON.stringify({
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: maxTokens,
+      system,
+      messages: [{ role: 'user', content: userContent }],
+    }),
+  })
+}
+
+function KitActionRow({
+  onRegenerate,
+  regenDisabled,
+  regenLabel,
+  copyText,
+  onEditInContent,
+  editOpen,
+  editValue,
+  onEditChange,
+  greigeBg,
+}) {
+  return (
+    <>
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
+        <button
+          type="button"
+          disabled={regenDisabled}
+          onClick={onRegenerate}
+          style={{
+            ...KIT_ACTION_BTN,
+            border: 'none',
+            background: C.dark,
+            color: '#fff',
+            opacity: regenDisabled ? 0.45 : 1,
+            cursor: regenDisabled ? 'not-allowed' : 'pointer',
+          }}
+        >
+          {regenLabel}
+        </button>
+        <CopyBtn text={copyText} style={{ marginTop: 0, minHeight: 32 }} />
+        <button
+          type="button"
+          onClick={onEditInContent}
+          style={{
+            ...KIT_ACTION_BTN,
+            border: `1px solid ${C.borderStrong}`,
+            background: C.surface,
+            color: C.text,
+          }}
+        >
+          {editOpen ? 'Close editor' : 'Edit in Content'}
+        </button>
+      </div>
+      {editOpen && (
+        <textarea
+          value={editValue}
+          onChange={e => onEditChange(e.target.value)}
+          rows={12}
+          style={{
+            width: '100%',
+            marginTop: 12,
+            boxSizing: 'border-box',
+            border: `1px solid ${C.border}`,
+            borderRadius: 10,
+            padding: '12px 14px',
+            fontSize: 13,
+            fontFamily: "'DM Sans', sans-serif",
+            lineHeight: 1.65,
+            background: greigeBg,
+            color: C.text,
+            resize: 'vertical',
+            outline: 'none',
+          }}
+        />
+      )}
+    </>
+  )
+}
+
 function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach, embedded }) {
   const storageKey = KIT_TAILORED_RESUME_PREFIX + String(r?.id ?? `${r?.jobTitle || ''}_${r?.company || ''}`.replace(/\s/g, '_'))
   const [mainOpen, setMainOpen] = useState(false)
@@ -316,6 +466,18 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const [tailored, setTailored] = useState('')
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
+  const [resumeVar, setResumeVar] = useState(0)
+  const [coverText, setCoverText] = useState('')
+  const [coverLoading, setCoverLoading] = useState(false)
+  const [coverErr, setCoverErr] = useState('')
+  const [coverVar, setCoverVar] = useState(0)
+  const [connectText, setConnectText] = useState('')
+  const [connectLoading, setConnectLoading] = useState(false)
+  const [connectErr, setConnectErr] = useState('')
+  const [connectVar, setConnectVar] = useState(0)
+  const [resumeEdit, setResumeEdit] = useState(false)
+  const [coverEdit, setCoverEdit] = useState(false)
+  const [connectEdit, setConnectEdit] = useState(false)
   const autoGenAttemptedRef = useRef(null)
 
   useEffect(() => {
@@ -323,13 +485,21 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setConnectOpen(false)
     setCoverOpen(false)
     setResumeOpen(false)
+    setResumeEdit(false)
+    setCoverEdit(false)
+    setConnectEdit(false)
     autoGenAttemptedRef.current = null
+    setResumeVar(0)
+    setCoverVar(0)
+    setConnectVar(0)
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
     } catch {
       setTailored('')
     }
-  }, [storageKey])
+    setCoverText(String(r?.coverLetter || ''))
+    setConnectText(String(r?.outreachMessage || ''))
+  }, [storageKey, r?.coverLetter, r?.outreachMessage])
 
   const jdText = String(r?.analyzedJobPosting || '').trim()
   const jdUrl = String(r?.jobPostingUrl || '').trim()
@@ -339,8 +509,11 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const canGenerate = !!sourceResume && (!!jdBlock || !!(r?.jobTitle || r?.company))
   const gapsLine = (Array.isArray(r?.missingSkills) ? r.missingSkills : []).filter(Boolean).join(', ')
   const transferNotes = String(r?.transferableNotes || '').trim()
+  const voiceSec = voiceProfile?.analysis
+    ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
+    : ''
 
-  const generateTailoredResume = useCallback(async () => {
+  const generateTailoredResume = useCallback(async (variationRound = 0) => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
       return
@@ -356,48 +529,39 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setLoading(true)
     setErr('')
     try {
-      const voiceSec = voiceProfile?.analysis
-        ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1400)
-        : ''
       const gapsSec = gapsLine
         ? '\n\nSKILL GAPS IDENTIFIED FOR THIS JOB (honest framing only — rephrase existing experience toward these themes; do NOT claim new tools, years, or credentials):\n' + gapsLine + '\n'
         : ''
       const transferSec = transferNotes
         ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 6000) + '\n'
         : ''
+      const varHint =
+        variationRound > 0
+          ? `\n\nREGENERATION ${variationRound + 1} of 3: Produce a meaningfully different layout or bullet emphasis while keeping the SAME facts as the source resume only. No new employers, dates, tools, or metrics.\n`
+          : ''
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
         (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 8000) + '\n\n' : '') +
         gapsSec +
         transferSec +
+        varHint +
         'SOURCE RESUME — sole source of truth for facts (employers, dates, titles, education, tools, metrics). Do not add, remove, or alter facts:\n' +
         sourceResume.slice(0, 12000) +
         voiceSec +
         '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
         'FORMAT (plain text, no markdown):\n' +
-        '- Name and contact from the source if present.\n' +
+        '- Name and contact on one visual line where possible (separate contact fragments with spaces or | ); keep LinkedIn/one site typical; extra links may wrap only if needed.\n' +
         '- Section titles alone in ALL CAPS (e.g. SUMMARY, EXPERIENCE, EDUCATION, SKILLS).\n' +
         '- Blank line between sections.\n' +
         '- Bullet lines start with "- ".\n' +
         '- No emoji, tables, or decorative characters.\n' +
         'Return ONLY the resume text.'
 
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-api-key': apiKey,
-          'anthropic-version': '2023-06-01',
-          'anthropic-dangerous-direct-browser-access': 'true',
-        },
-        body: JSON.stringify({
-          model: 'claude-sonnet-4-20250514',
-          max_tokens: 3500,
-          system:
-            'You edit resumes for specific job postings. Facts may come ONLY from the candidate source resume text supplied by the user. The job description and skill-gap notes guide emphasis and honest transferable framing; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
-          messages: [{ role: 'user', content: userContent }],
-        }),
-      })
+      const res = await kitFetchMessages(
+        apiKey,
+        'You edit resumes for specific job postings. Facts may come ONLY from the candidate source resume text supplied by the user. The job description and skill-gap notes guide emphasis and honest transferable framing; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
+        userContent,
+      )
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
         throw new Error(e.error?.message || 'API error ' + res.status)
@@ -413,7 +577,95 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     } finally {
       setLoading(false)
     }
-  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
+  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey, voiceSec])
+
+  const generateCoverVariant = useCallback(
+    async (variationRound = 0) => {
+      if (!keySaved || !apiKey) {
+        alert('Save your API key first.')
+        return
+      }
+      const base = String(r?.coverLetter || '').trim()
+      if (!base) return
+      setCoverLoading(true)
+      setCoverErr('')
+      try {
+        const varHint =
+          variationRound > 0
+            ? `Produce alternative ${variationRound + 1} of 3: different opening and paragraph emphasis; same facts as the reference only.\n\n`
+            : ''
+        const userContent =
+          varHint +
+          'Target role: ' + jobLine + '\n\n' +
+          (jdBlock ? 'JOB DESCRIPTION:\n' + jdBlock.slice(0, 6000) + '\n\n' : '') +
+          'CANDIDATE RESUME (facts only):\n' + sourceResume.slice(0, 8000) + '\n' +
+          voiceSec +
+          '\n\nREFERENCE COVER LETTER (keep all facts consistent with resume; improve into a fresh version):\n' + base.slice(0, 12000) +
+          '\n\nReturn ONLY the full cover letter plain text. No markdown. No emojis. Do not invent experience.'
+
+        const res = await kitFetchMessages(
+          apiKey,
+          'You revise cover letters using only facts supported by the candidate resume. Never hallucinate credentials or experience.',
+          userContent,
+          2500,
+        )
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}))
+          throw new Error(e.error?.message || 'API error ' + res.status)
+        }
+        const data = await res.json()
+        setCoverText(data.content.map(b => b.text || '').join('').trim())
+      } catch (e) {
+        setCoverErr(e.message || 'Something went wrong.')
+      } finally {
+        setCoverLoading(false)
+      }
+    },
+    [keySaved, apiKey, r?.coverLetter, jobLine, jdBlock, sourceResume, voiceSec],
+  )
+
+  const generateConnectVariant = useCallback(
+    async (variationRound = 0) => {
+      if (!keySaved || !apiKey) {
+        alert('Save your API key first.')
+        return
+      }
+      const base = String(r?.outreachMessage || '').trim()
+      if (!base) return
+      setConnectLoading(true)
+      setConnectErr('')
+      try {
+        const varHint =
+          variationRound > 0
+            ? `Alternative ${variationRound + 1} of 3: different hook; same intent and honesty.\n\n`
+            : ''
+        const userContent =
+          varHint +
+          'Job: ' + jobLine + '\n' +
+          (jdBlock ? 'Context:\n' + jdBlock.slice(0, 4000) + '\n\n' : '') +
+          'REFERENCE MESSAGE:\n' + base.slice(0, 2000) +
+          '\n\nRewrite as a short outreach message (under 280 characters if possible). Plain text. No emojis. Facts only from reference. Return ONLY the message.'
+
+        const res = await kitFetchMessages(
+          apiKey,
+          'You write concise outreach messages. Never invent employers or roles. No emojis.',
+          userContent,
+          600,
+        )
+        if (!res.ok) {
+          const e = await res.json().catch(() => ({}))
+          throw new Error(e.error?.message || 'API error ' + res.status)
+        }
+        const data = await res.json()
+        setConnectText(data.content.map(b => b.text || '').join('').trim())
+      } catch (e) {
+        setConnectErr(e.message || 'Something went wrong.')
+      } finally {
+        setConnectLoading(false)
+      }
+    },
+    [keySaved, apiKey, r?.outreachMessage, jobLine, jdBlock],
+  )
 
   useEffect(() => {
     if (!resumeOpen || !canGenerate || !keySaved || !apiKey) return
@@ -427,8 +679,79 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     }
     if (autoGenAttemptedRef.current === storageKey) return
     autoGenAttemptedRef.current = storageKey
-    generateTailoredResume()
+    setResumeVar(0)
+    generateTailoredResume(0)
   }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
+
+  useEffect(() => {
+    if (!coverOpen || !showCoverLetter) return
+    if (coverLoading) return
+    const t = String(coverText || '').trim()
+    if (t) return
+    const fromR = String(r?.coverLetter || '').trim()
+    if (fromR) setCoverText(fromR)
+  }, [coverOpen, showCoverLetter, r?.coverLetter, coverText, coverLoading])
+
+  useEffect(() => {
+    if (!connectOpen || !showOutreach) return
+    if (connectLoading) return
+    const t = String(connectText || '').trim()
+    if (t) return
+    const fromR = String(r?.outreachMessage || '').trim()
+    if (fromR) setConnectText(fromR)
+  }, [connectOpen, showOutreach, r?.outreachMessage, connectText, connectLoading])
+
+  const onResumeRowClick = () => {
+    setResumeOpen(v => {
+      const n = !v
+      if (n) {
+        setResumeEdit(false)
+      }
+      return n
+    })
+  }
+
+  const onCoverRowClick = () => {
+    setCoverOpen(v => {
+      const n = !v
+      if (n) {
+        setCoverEdit(false)
+        const fromR = String(r?.coverLetter || '').trim()
+        if (fromR && !String(coverText || '').trim()) setCoverText(fromR)
+      }
+      return n
+    })
+  }
+
+  const onConnectRowClick = () => {
+    setConnectOpen(v => {
+      const n = !v
+      if (n) {
+        setConnectEdit(false)
+        const fromR = String(r?.outreachMessage || '').trim()
+        if (fromR && !String(connectText || '').trim()) setConnectText(fromR)
+      }
+      return n
+    })
+  }
+
+  const handleResumeRegen = async () => {
+    const next = (resumeVar + 1) % 3
+    setResumeVar(next)
+    await generateTailoredResume(next)
+  }
+
+  const handleCoverRegen = async () => {
+    const next = (coverVar + 1) % 3
+    setCoverVar(next)
+    await generateCoverVariant(next)
+  }
+
+  const handleConnectRegen = async () => {
+    const next = (connectVar + 1) % 3
+    setConnectVar(next)
+    await generateConnectVariant(next)
+  }
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
 
@@ -463,11 +786,13 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         onClick={() =>
           setMainOpen(v => {
             const next = !v
-            if (next) setResumeOpen(true)
-            else {
+            if (!next) {
               setResumeOpen(false)
               setCoverOpen(false)
               setConnectOpen(false)
+              setResumeEdit(false)
+              setCoverEdit(false)
+              setConnectEdit(false)
             }
             return next
           })
@@ -497,16 +822,9 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       {mainOpen && (
         <div style={{ paddingBottom: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
           <div style={{ marginBottom: 4 }}>
-            <button
-              type="button"
-              onClick={() => setResumeOpen(v => !v)}
-              style={{
-                ...subBtn,
-                borderBottom: resumeOpen || showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none',
-              }}
-            >
+            <button type="button" onClick={onResumeRowClick} style={{ ...subBtn, borderBottom: resumeOpen || showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none' }}>
               <span>Tailored resume</span>
-              <span style={collapsibleChevronStyle(resumeOpen)} aria-hidden>▶</span>
+              <CyanMicroTriangle open={resumeOpen} />
             </button>
             {resumeOpen && (
               <div style={{ padding: '12px 0 8px', borderBottom: showCoverLetter || showOutreach ? `1px solid ${C.border}` : 'none' }}>
@@ -518,13 +836,55 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                 {!loading && (
                   <>
                     {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
-                    <TailoredResumeView text={tailored} />
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, alignItems: 'center' }}>
-                      <Btn small primary disabled={loading || !canGenerate} onClick={generateTailoredResume}>
-                        {tailored.trim() ? 'Regenerate' : 'Generate'}
-                      </Btn>
-                      {tailored.trim() ? <CopyBtn text={tailored} /> : null}
-                    </div>
+                    {!resumeEdit && <TailoredResumeView text={resumeEdit ? '' : tailored} paperBg={C.kitResumeBg} />}
+                    <KitActionRow
+                      onRegenerate={handleResumeRegen}
+                      regenDisabled={loading || !canGenerate}
+                      regenLabel={tailored.trim() ? `Regenerate (${resumeVar + 1}/3)` : 'Generate'}
+                      copyText={tailored}
+                      onEditInContent={() => {
+                        setResumeEdit(e => !e)
+                      }}
+                      editOpen={resumeEdit}
+                      editValue={tailored}
+                      onEditChange={v => {
+                        setTailored(v)
+                        try {
+                          sessionStorage.setItem(storageKey, v)
+                        } catch { /* ignore */ }
+                      }}
+                      greigeBg={C.kitResumeBg}
+                    />
+                    {resumeEdit && (
+                      <textarea
+                        value={tailored}
+                        onChange={e => {
+                          const v = e.target.value
+                          setTailored(v)
+                          try {
+                            sessionStorage.setItem(storageKey, v)
+                          } catch { /* ignore */ }
+                        }}
+                        rows={14}
+                        style={{
+                          width: '100%',
+                          marginTop: 12,
+                          boxSizing: 'border-box',
+                          border: `1px solid ${C.border}`,
+                          borderRadius: 10,
+                          padding: '12px 14px',
+                          fontSize: 13,
+                          fontFamily: "'DM Sans', sans-serif",
+                          lineHeight: 1.65,
+                          background: C.kitResumeBg,
+                          color: C.text,
+                          resize: 'vertical',
+                          outline: 'none',
+                        }}
+                      />
+                    )}
+                    {!resumeEdit && <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />}
+                    {resumeEdit && null}
                     {!sourceResume && (
                       <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
                     )}
@@ -535,32 +895,120 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
           </div>
           {showCoverLetter && (
             <div style={{ marginBottom: 4 }}>
-              <button type="button" onClick={() => setCoverOpen(v => !v)} style={{ ...subBtn, borderBottom: coverOpen || showOutreach ? `1px solid ${C.border}` : 'none' }}>
+              <button type="button" onClick={onCoverRowClick} style={{ ...subBtn, borderBottom: coverOpen || showOutreach ? `1px solid ${C.border}` : 'none' }}>
                 <span>Cover letter</span>
-                <span style={collapsibleChevronStyle(coverOpen)} aria-hidden>▶</span>
+                <CyanMicroTriangle open={coverOpen} />
               </button>
               {coverOpen && (
                 <div style={{ padding: '12px 0 16px', borderBottom: showOutreach ? `1px solid ${C.border}` : 'none' }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.letterPanelBg, border: `1px solid ${C.letterPanelBorder}` }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.coverLetter}</pre>
-                    <CopyBtn text={r.coverLetter} />
-                  </div>
+                  {coverLoading && (
+                    <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
+                      <Dots /> Working on your cover letter…
+                    </div>
+                  )}
+                  {!coverLoading && (
+                    <>
+                      {coverErr && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{coverErr}</div>}
+                      {!coverEdit && (
+                        <div style={{ padding: '12px 14px', borderRadius: 12, background: C.kitCoverBg, border: `1px solid ${C.letterPanelBorder}` }}>
+                          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{coverText}</pre>
+                        </div>
+                      )}
+                      <KitActionRow
+                        onRegenerate={handleCoverRegen}
+                        regenDisabled={coverLoading || !String(r?.coverLetter || '').trim()}
+                        regenLabel={`Regenerate (${coverVar + 1}/3)`}
+                        copyText={coverText}
+                        onEditInContent={() => setCoverEdit(e => !e)}
+                        editOpen={coverEdit}
+                        editValue={coverText}
+                        onEditChange={setCoverText}
+                        greigeBg={C.kitCoverBg}
+                      />
+                      {coverEdit && (
+                        <textarea
+                          value={coverText}
+                          onChange={e => setCoverText(e.target.value)}
+                          rows={14}
+                          style={{
+                            width: '100%',
+                            marginTop: 12,
+                            boxSizing: 'border-box',
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 10,
+                            padding: '12px 14px',
+                            fontSize: 13,
+                            fontFamily: "'DM Sans', sans-serif",
+                            lineHeight: 1.65,
+                            background: C.kitCoverBg,
+                            color: C.text,
+                            resize: 'vertical',
+                            outline: 'none',
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
           )}
           {showOutreach && (
             <div style={{ marginBottom: 4 }}>
-              <button type="button" onClick={() => setConnectOpen(v => !v)} style={{ ...subBtn, borderBottom: 'none' }}>
-                <span>Connect · outreach</span>
-                <span style={collapsibleChevronStyle(connectOpen)} aria-hidden>▶</span>
+              <button type="button" onClick={onConnectRowClick} style={{ ...subBtn, borderBottom: 'none' }}>
+                <span>Connect</span>
+                <CyanMicroTriangle open={connectOpen} />
               </button>
               {connectOpen && (
                 <div style={{ padding: '12px 0 16px' }}>
-                  <div style={{ padding: '10px 12px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
-                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{r.outreachMessage}</pre>
-                    <CopyBtn text={r.outreachMessage} />
-                  </div>
+                  {connectLoading && (
+                    <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
+                      <Dots /> Working on your message…
+                    </div>
+                  )}
+                  {!connectLoading && (
+                    <>
+                      {connectErr && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{connectErr}</div>}
+                      {!connectEdit && (
+                        <div style={{ padding: '12px 14px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
+                          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{connectText}</pre>
+                        </div>
+                      )}
+                      <KitActionRow
+                        onRegenerate={handleConnectRegen}
+                        regenDisabled={connectLoading || !String(r?.outreachMessage || '').trim()}
+                        regenLabel={`Regenerate (${connectVar + 1}/3)`}
+                        copyText={connectText}
+                        onEditInContent={() => setConnectEdit(e => !e)}
+                        editOpen={connectEdit}
+                        editValue={connectText}
+                        onEditChange={setConnectText}
+                        greigeBg={C.connectPanelBg}
+                      />
+                      {connectEdit && (
+                        <textarea
+                          value={connectText}
+                          onChange={e => setConnectText(e.target.value)}
+                          rows={6}
+                          style={{
+                            width: '100%',
+                            marginTop: 12,
+                            boxSizing: 'border-box',
+                            border: `1px solid ${C.border}`,
+                            borderRadius: 10,
+                            padding: '12px 14px',
+                            fontSize: 13,
+                            fontFamily: "'DM Sans', sans-serif",
+                            lineHeight: 1.65,
+                            background: C.connectPanelBg,
+                            color: C.text,
+                            resize: 'vertical',
+                            outline: 'none',
+                          }}
+                        />
+                      )}
+                    </>
+                  )}
                 </div>
               )}
             </div>
