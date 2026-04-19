@@ -321,17 +321,14 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
   const flushBullets = (bulletBuf, sectionId) => {
     if (!bulletBuf.length) return
     if (sectionId === 'skills') {
-      bulletBuf.forEach(b => {
-        checkPage(18)
-        doc.setFontSize(10.5)
-        doc.setFont('helvetica', 'normal')
-        doc.setTextColor(28, 28, 26)
-        doc.text('•', margin, y)
-        doc.splitTextToSize(b, contentW - 14).forEach(line => {
-          checkPage(16)
-          doc.text(line, margin + 14, y)
-          y += 13
-        })
+      const txt = bulletBuf.join(' • ')
+      doc.setFontSize(10.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(28, 28, 26)
+      doc.splitTextToSize(txt, contentW).forEach(line => {
+        checkPage(16)
+        doc.text(line, margin, y)
+        y += 14
       })
     } else {
       bulletBuf.forEach(b => {
@@ -984,6 +981,34 @@ function TailoredResumeJsonEducationLines({ lines }) {
   )
 }
 
+/** Skills: one flowing block — skill • skill • … wraps like a paragraph (not a vertical list). */
+function TailoredResumeJsonSkillsInline({ items }) {
+  if (!items?.length) return null
+  return (
+    <div
+      style={{
+        margin: '0 0 12px 0',
+        fontSize: 11,
+        lineHeight: 1.65,
+        color: C.resumeBody,
+        maxWidth: '100%',
+      }}
+    >
+      {items.map((item, i) => (
+        <span key={i}>
+          {item}
+          {i < items.length - 1 && (
+            <span style={{ color: C.muted, userSelect: 'none' }} aria-hidden>
+              {' '}
+              •{' '}
+            </span>
+          )}
+        </span>
+      ))}
+    </div>
+  )
+}
+
 /** Render one section's lines (bullets + paragraphs); experience uses TailoredExperienceParagraph. */
 function TailoredResumeJsonSectionLines({ lines, sectionId }) {
   if (sectionId === 'projects') return <TailoredResumeJsonProjectLines lines={lines} />
@@ -993,45 +1018,33 @@ function TailoredResumeJsonSectionLines({ lines, sectionId }) {
   const nodes = []
   let bulletBuf = []
   let key = 0
-  const skillsListStyle = {
-    margin: '0 0 10px 0',
-    padding: '0 0 0 1.15em',
-    listStyleType: 'disc',
-    listStylePosition: 'outside',
-    fontSize: 11,
-    lineHeight: 1.5,
-    color: C.resumeBody,
-    maxWidth: '100%',
-  }
 
   const flushBullets = () => {
     if (!bulletBuf.length) return
-    nodes.push(
-      <ul key={`ul-${key++}`} style={sectionId === 'skills' ? skillsListStyle : {
-        margin: '0 0 12px 0',
-        padding: '0 0 0 1.1em',
-        listStyleType: 'disc',
-        listStylePosition: 'outside',
-        fontSize: 11,
-        lineHeight: 1.48,
-        color: C.resumeBody,
-      }}
-      >
-        {bulletBuf.map((item, i) => (
-          <li
-            key={i}
-            style={{
-              marginBottom: sectionId === 'skills' ? 3 : 6,
-              paddingLeft: 2,
-              wordBreak: 'break-word',
-              overflowWrap: 'break-word',
-            }}
-          >
-            {item}
-          </li>
-        ))}
-      </ul>,
-    )
+    if (sectionId === 'skills') {
+      nodes.push(<TailoredResumeJsonSkillsInline key={`sk-${key++}`} items={bulletBuf} />)
+    } else {
+      nodes.push(
+        <ul
+          key={`ul-${key++}`}
+          style={{
+            margin: '0 0 12px 0',
+            padding: '0 0 0 1.1em',
+            listStyleType: 'disc',
+            listStylePosition: 'outside',
+            fontSize: 11,
+            lineHeight: 1.48,
+            color: C.resumeBody,
+          }}
+        >
+          {bulletBuf.map((item, i) => (
+            <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>
+              {item}
+            </li>
+          ))}
+        </ul>,
+      )
+    }
     bulletBuf = []
   }
   let i = 0
@@ -1056,18 +1069,7 @@ function TailoredResumeJsonSectionLines({ lines, sectionId }) {
           .map(s => s.trim())
           .filter(Boolean)
         if (items.length) {
-          nodes.push(
-            <ul key={`sk-para-${key++}`} style={skillsListStyle}>
-              {items.map((item, i) => (
-                <li
-                  key={i}
-                  style={{ marginBottom: 3, paddingLeft: 2, wordBreak: 'break-word', overflowWrap: 'break-word' }}
-                >
-                  {item}
-                </li>
-              ))}
-            </ul>,
-          )
+          nodes.push(<TailoredResumeJsonSkillsInline key={`sk-para-${key++}`} items={items} />)
         }
       } else {
         nodes.push(
@@ -1864,7 +1866,8 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
         'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n' +
         'PROJECTS lines: for each project, first line MUST be "ProjectName - tool1 • tool2 • tool3" (space-dash-space after name; tools separated by •). Following lines are a short description only.\n' +
-        'EDUCATION lines: each credential as a bold-worthy title line (e.g. certification or degree name), with details on the following lines before the next credential.\n'
+        'EDUCATION lines: each credential as a bold-worthy title line (e.g. certification or degree name), with details on the following lines before the next credential.\n' +
+        'SKILLS lines: no category labels. Use one "- Skill name" per line in the array (order matters). First five lines = five most job-relevant skills; remaining skills follow. Do not use a vertical list in prose—each line is one skill; the UI joins them with • and wraps as a paragraph.\n'
 
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
