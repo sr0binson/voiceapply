@@ -147,9 +147,14 @@ const PDF_RESUME_BG = [250, 250, 250]
 /** Section underline — light neutral rule, not body text. */
 const PDF_SECTION_RULE = [217, 217, 215]
 
-/** #1c1c1a — call immediately before every doc.text so fill color is never left from a prior operation. */
+/** #1c1c1a — call immediately before every non-link doc.text (jsPDF defaults can otherwise read as brown). */
 function pdfSetTextInk(doc) {
   doc.setTextColor(28, 28, 26)
+}
+
+/** #4ecdc4 — contact-row URLs only; call immediately before each link doc.text. */
+function pdfSetLinkCyan(doc) {
+  doc.setTextColor(78, 205, 196)
 }
 
 function pdfResumePageBackground(doc) {
@@ -213,10 +218,13 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
       x = margin
       y += lineH
     }
-    pdfSetTextInk(doc)
-    doc.text(label, x, y)
     if (p.url) {
+      pdfSetLinkCyan(doc)
+      doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
+    } else {
+      pdfSetTextInk(doc)
+      doc.text(label, x, y)
     }
     x += w
   })
@@ -266,10 +274,13 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
       x = margin
       y += lineH
     }
-    pdfSetTextInk(doc)
-    doc.text(label, x, y)
     if (p.url) {
+      pdfSetLinkCyan(doc)
+      doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
+    } else {
+      pdfSetTextInk(doc)
+      doc.text(label, x, y)
     }
     x += w
   })
@@ -315,6 +326,10 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   const expBodyLine = 13
   /** Space before 2nd+ project / credential block (like separation between job entries). */
   const blockGapBefore = 12
+  /** Tighter vertical rhythm for Projects + Education only (PDF looked too loose vs Experience). */
+  const projEduBlockGapBefore = 8
+  const projEduGapAfterTitle = 11
+  const projEduBodyLine = 11
   const sectionGapBefore = 16
   const sectionGapTitleToRule = 7
   const sectionGapAfterRule = 12
@@ -408,7 +423,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       /* Same vertical rhythm as Experience: heading line(s) at expBodyLine, then expGapAfterTitle before body, body at expBodyLine. */
       for (let bi = 0; bi < blocks.length; bi++) {
         const b = blocks[bi]
-        if (bi > 0) y += gap(blockGapBefore)
+        if (bi > 0) y += gap(projEduBlockGapBefore)
         checkPage(28)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
@@ -423,15 +438,15 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           doc.setFont('helvetica', 'normal')
           pdfSetTextInk(doc)
           doc.text(toolsStr, margin + tw, y)
-          if (b.desc.length) y += gap(expGapAfterTitle)
-          else y += gap(expBodyLine)
+          if (b.desc.length) y += gap(projEduGapAfterTitle)
+          else y += gap(projEduBodyLine)
         } else {
           doc.setFont('helvetica', 'bold')
           doc.splitTextToSize(b.title, contentW).forEach(line => {
             checkPage(16)
             pdfSetTextInk(doc)
             doc.text(line, margin, y)
-            y += gap(expBodyLine)
+            y += gap(projEduBodyLine)
           })
           if (b.tools) {
             doc.setFont('helvetica', 'normal')
@@ -439,10 +454,10 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
               checkPage(16)
               pdfSetTextInk(doc)
               doc.text(line, margin, y)
-              y += gap(expBodyLine)
+              y += gap(projEduBodyLine)
             })
           }
-          if (b.desc.length) y += gap(expGapAfterTitle)
+          if (b.desc.length) y += gap(projEduGapAfterTitle)
         }
         if (b.desc.length) {
           for (const dline of b.desc) {
@@ -452,7 +467,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
               checkPage(16)
               pdfSetTextInk(doc)
               doc.text(line, margin, y)
-              y += gap(expBodyLine)
+              y += gap(projEduBodyLine)
             })
           }
         }
@@ -464,7 +479,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       const eduLs = expandEducationRawLines(ls)
       const blocks = splitEducationLines(eduLs)
       blocks.forEach((b, ei) => {
-        if (ei > 0) y += gap(blockGapBefore)
+        if (ei > 0) y += gap(projEduBlockGapBefore)
         checkPage(22)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
@@ -475,15 +490,15 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           checkPage(16)
           pdfSetTextInk(doc)
           doc.text(titleLines[0], margin, y)
-          y += eduBody ? gap(expGapAfterTitle) : gap(expBodyLine)
+          y += eduBody ? gap(projEduGapAfterTitle) : gap(projEduBodyLine)
         } else {
           titleLines.forEach(line => {
             checkPage(16)
             pdfSetTextInk(doc)
             doc.text(line, margin, y)
-            y += gap(expBodyLine)
+            y += gap(projEduBodyLine)
           })
-          if (eduBody) y += gap(expGapAfterTitle)
+          if (eduBody) y += gap(projEduGapAfterTitle)
         }
         doc.setFont('helvetica', 'normal')
         if (eduBody) {
@@ -491,7 +506,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
             checkPage(16)
             pdfSetTextInk(doc)
             doc.text(line, margin, y)
-            y += gap(expBodyLine)
+            y += gap(projEduBodyLine)
           })
         }
       })
@@ -983,6 +998,32 @@ function orderContactLineForDisplay(raw) {
 
 const TAILORED_RESUME_JSON_VERSION = 1
 
+/**
+ * Stable canonical section order (matches tailored JSON examples: PROJECTS before EDUCATION).
+ * Re-sorts model output when those blocks appear in the wrong order.
+ */
+function tailoredResumeSectionSortKey(title) {
+  const u = String(title || '').toUpperCase()
+  if (/\b(SUMMARY|PROFILE|OBJECTIVE)\b/.test(u)) return 0
+  if (/\bSKILLS\b/.test(u) || /\bCOMPETENCIES\b/.test(u)) return 1
+  if (/\bEXPERIENCE\b/.test(u) || /\bEMPLOYMENT\b/.test(u) || /\bWORK HISTORY\b/.test(u)) return 2
+  if (/\bPROJECTS?\b/.test(u)) return 3
+  if (/\bEDUCATION\b/.test(u) || /\bCERTIFICATIONS?\b/.test(u) || /\bACADEMIC\b/.test(u)) return 4
+  return 5
+}
+
+function sortTailoredResumeSections(sections) {
+  return [...sections]
+    .map((s, i) => ({ s, i }))
+    .sort((a, b) => {
+      const ka = tailoredResumeSectionSortKey(a.s.title)
+      const kb = tailoredResumeSectionSortKey(b.s.title)
+      if (ka !== kb) return ka - kb
+      return a.i - b.i
+    })
+    .map(x => x.s)
+}
+
 /** Strip ```json fences from model output. */
 function stripAssistantJsonFence(s) {
   let t = String(s || '').trim()
@@ -999,15 +1040,17 @@ function normalizeTailoredResumeJson(raw) {
   let websites = Array.isArray(c.websites) ? c.websites.map(w => String(w || '').trim()) : []
   while (websites.length < 2) websites.push('')
   websites = websites.slice(0, 2)
-  const sections = Array.isArray(raw.sections)
-    ? raw.sections.map(s => {
-        const title = String(s.title || '').trim()
-        const rawLines = Array.isArray(s.lines) ? s.lines.map(l => String(l)) : []
-        const lines =
-          resumeSectionId(title) === 'education' ? expandEducationRawLines(rawLines) : rawLines
-        return { title, lines }
-      })
-    : []
+  const sections = sortTailoredResumeSections(
+    Array.isArray(raw.sections)
+      ? raw.sections.map(s => {
+          const title = String(s.title || '').trim()
+          const rawLines = Array.isArray(s.lines) ? s.lines.map(l => String(l)) : []
+          const lines =
+            resumeSectionId(title) === 'education' ? expandEducationRawLines(rawLines) : rawLines
+          return { title, lines }
+        })
+      : [],
+  )
   return {
     version: TAILORED_RESUME_JSON_VERSION,
     name: String(raw.name || '').trim(),
@@ -3018,8 +3061,11 @@ function AnalyzeTab({
 
 function ResultCard({ result:r, onApplyAnyway, apiKey, keySaved, voiceProfile, matchThreshold, setTab, experienceLevel }) {
   const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
-  const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
-  const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
+  const hasCoverDraft = !!(r.coverLetter && String(r.coverLetter).trim())
+  const hasOutreachDraft = !!(r.outreachMessage && String(r.outreachMessage).trim())
+  /** SKIP runs often omit drafts; Apply anyway still unlocks materials — show rows so users can paste or re-run analysis. */
+  const showCoverLetter = allowApplyOutputs && (hasCoverDraft || r.applyAnyway === true)
+  const showOutreach = allowApplyOutputs && (hasOutreachDraft || r.applyAnyway === true)
   const hasUpskillShell = !!(r.missingSkills?.length > 0 && allowApplyOutputs && (r.transferableNotes || r.projectIdea))
   const scoreColor = r.score>=85?C.green:r.score>=70?C.amber:C.red
   const vc = {APPLY:{bg:C.greenBg,color:C.green,border:'rgba(45,106,79,0.2)',label:'Apply'},SKIP:{bg:C.redBg,color:C.red,border:'rgba(155,35,53,0.2)',label:'Do not apply'},SCAM:{bg:C.amberBg,color:C.amber,border:'rgba(122,79,0,0.2)',label:'Likely scam — skip'}}[r.verdict]||{bg:C.surface2,color:C.muted,border:C.border,label:r.verdict}
