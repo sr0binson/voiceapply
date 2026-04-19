@@ -321,14 +321,17 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
   const flushBullets = (bulletBuf, sectionId) => {
     if (!bulletBuf.length) return
     if (sectionId === 'skills') {
-      const txt = bulletBuf.join(' • ')
-      doc.setFontSize(10.5)
-      doc.setFont('helvetica', 'normal')
-      doc.setTextColor(28, 28, 26)
-      doc.splitTextToSize(txt, contentW).forEach(line => {
-        checkPage(16)
-        doc.text(line, margin, y)
-        y += 14
+      bulletBuf.forEach(b => {
+        checkPage(18)
+        doc.setFontSize(10.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(28, 28, 26)
+        doc.text('•', margin, y)
+        doc.splitTextToSize(b, contentW - 14).forEach(line => {
+          checkPage(16)
+          doc.text(line, margin + 14, y)
+          y += 13
+        })
       })
     } else {
       bulletBuf.forEach(b => {
@@ -378,7 +381,7 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           doc.text(b.title, margin, y)
           doc.setFont('helvetica', 'normal')
           doc.text(toolsStr, margin + tw, y)
-          y += 14
+          y += 9
         } else {
           doc.setFont('helvetica', 'bold')
           doc.splitTextToSize(b.title, contentW).forEach(line => {
@@ -402,10 +405,10 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           doc.splitTextToSize(dline, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 13
+            y += 12
           })
         }
-        y += 4
+        y += 2
       }
       continue
     }
@@ -427,10 +430,10 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           doc.splitTextToSize(dline, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 13
+            y += 12
           })
         }
-        y += 4
+        y += 2
       }
       continue
     }
@@ -920,8 +923,8 @@ function TailoredResumeJsonProjectLines({ lines }) {
   return (
     <>
       {blocks.map((b, idx) => (
-        <div key={idx} style={{ marginBottom: 16 }}>
-          <div style={{ fontSize: 11, lineHeight: 1.5, color: C.resumeBody }}>
+        <div key={idx} style={{ marginBottom: 12 }}>
+          <div style={{ fontSize: 11, lineHeight: 1.45, color: C.resumeBody }}>
             <span style={{ fontWeight: 700 }}>{b.title}</span>
             {b.tools ? (
               <>
@@ -934,10 +937,10 @@ function TailoredResumeJsonProjectLines({ lines }) {
             <p
               key={j}
               style={{
-                margin: '6px 0 0',
+                margin: '2px 0 0',
                 fontSize: 11,
                 fontWeight: 400,
-                lineHeight: 1.55,
+                lineHeight: 1.5,
                 color: C.resumeBody,
                 whiteSpace: 'pre-wrap',
               }}
@@ -958,16 +961,16 @@ function TailoredResumeJsonEducationLines({ lines }) {
   return (
     <>
       {blocks.map((b, idx) => (
-        <div key={idx} style={{ marginBottom: 14 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.5, color: C.resumeBody }}>{b.title}</div>
+        <div key={idx} style={{ marginBottom: 10 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.45, color: C.resumeBody }}>{b.title}</div>
           {b.desc.map((d, j) => (
             <p
               key={j}
               style={{
-                margin: '5px 0 0',
+                margin: '2px 0 0',
                 fontSize: 11,
                 fontWeight: 400,
-                lineHeight: 1.55,
+                lineHeight: 1.5,
                 color: C.resumeBody,
                 whiteSpace: 'pre-wrap',
               }}
@@ -990,54 +993,45 @@ function TailoredResumeJsonSectionLines({ lines, sectionId }) {
   const nodes = []
   let bulletBuf = []
   let key = 0
+  const skillsListStyle = {
+    margin: '0 0 10px 0',
+    padding: '0 0 0 1.15em',
+    listStyleType: 'disc',
+    listStylePosition: 'outside',
+    fontSize: 11,
+    lineHeight: 1.5,
+    color: C.resumeBody,
+    maxWidth: '100%',
+  }
+
   const flushBullets = () => {
     if (!bulletBuf.length) return
-    if (sectionId === 'skills') {
-      nodes.push(
-        <div
-          key={`sk-${key++}`}
-          style={{
-            margin: '0 0 12px 0',
-            fontSize: 11,
-            lineHeight: 1.65,
-            color: C.resumeBody,
-          }}
-        >
-          {bulletBuf.map((item, i) => (
-            <span key={i}>
-              {item}
-              {i < bulletBuf.length - 1 && (
-                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
-                  {' '}
-                  •{' '}
-                </span>
-              )}
-            </span>
-          ))}
-        </div>,
-      )
-    } else {
-      nodes.push(
-        <ul
-          key={`ul-${key++}`}
-          style={{
-            margin: '0 0 12px 0',
-            padding: '0 0 0 1.1em',
-            listStyleType: 'disc',
-            listStylePosition: 'outside',
-            fontSize: 11,
-            lineHeight: 1.48,
-            color: C.resumeBody,
-          }}
-        >
-          {bulletBuf.map((item, i) => (
-            <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>
-              {item}
-            </li>
-          ))}
-        </ul>,
-      )
-    }
+    nodes.push(
+      <ul key={`ul-${key++}`} style={sectionId === 'skills' ? skillsListStyle : {
+        margin: '0 0 12px 0',
+        padding: '0 0 0 1.1em',
+        listStyleType: 'disc',
+        listStylePosition: 'outside',
+        fontSize: 11,
+        lineHeight: 1.48,
+        color: C.resumeBody,
+      }}
+      >
+        {bulletBuf.map((item, i) => (
+          <li
+            key={i}
+            style={{
+              marginBottom: sectionId === 'skills' ? 3 : 6,
+              paddingLeft: 2,
+              wordBreak: 'break-word',
+              overflowWrap: 'break-word',
+            }}
+          >
+            {item}
+          </li>
+        ))}
+      </ul>,
+    )
     bulletBuf = []
   }
   let i = 0
@@ -1056,6 +1050,25 @@ function TailoredResumeJsonSectionLines({ lines, sectionId }) {
     if (para.length) {
       if (sectionId === 'experience') {
         nodes.push(<TailoredExperienceParagraph key={`exp-${key++}`} paraLines={para} />)
+      } else if (sectionId === 'skills') {
+        const items = para
+          .flatMap(line => String(line).split(/[,;]+/))
+          .map(s => s.trim())
+          .filter(Boolean)
+        if (items.length) {
+          nodes.push(
+            <ul key={`sk-para-${key++}`} style={skillsListStyle}>
+              {items.map((item, i) => (
+                <li
+                  key={i}
+                  style={{ marginBottom: 3, paddingLeft: 2, wordBreak: 'break-word', overflowWrap: 'break-word' }}
+                >
+                  {item}
+                </li>
+              ))}
+            </ul>,
+          )
+        }
       } else {
         nodes.push(
           <p
