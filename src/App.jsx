@@ -2607,7 +2607,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
       )}
       <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
       <p style={{ fontSize:11, fontStyle:'italic', color:C.muted, marginBottom:24, lineHeight:1.6, marginTop:0 }}>
-        Paste a job description to get your match score, tailored resume, cover letter, connection message, and upskilling ideas to close any skill gaps
+        Paste a job description to get your match score, tailored resume, cover letter, connection message, and upskilling ideas!
       </p>
       <div style={{ marginBottom:14 }}>
         <Label>Mode</Label>
