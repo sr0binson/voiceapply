@@ -410,13 +410,15 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
     }
 
     if (sid === 'education') {
-      const blocks = splitEducationLines(ls)
+      const eduLs = expandEducationRawLines(ls)
+      const blocks = splitEducationLines(eduLs)
       for (const b of blocks) {
         checkPage(22)
         doc.setFontSize(10.5)
         doc.setTextColor(28, 28, 26)
         doc.setFont('helvetica', 'bold')
-        doc.splitTextToSize(b.title, contentW).forEach(line => {
+        const titleText = formatEducationTitleLine(b.title)
+        doc.splitTextToSize(titleText, contentW).forEach(line => {
           checkPage(16)
           doc.text(line, margin, y)
           y += 13
@@ -767,6 +769,7 @@ function formatEducationDescriptionPlain(s) {
   let t = String(s || '').trim()
   if (!t) return ''
   t = stripResumeBulletPrefix(t)
+  t = t.replace(/\*\*/g, '')
   t = t.replace(/\s*[•·]\s*/g, ', ')
   t = t.replace(/\s{2,}/g, ' ')
   t = t.replace(/,\s*,+/g, ', ')
@@ -779,6 +782,28 @@ function joinEducationDescriptionParts(desc) {
   if (!parts.length) return ''
   if (parts.length === 1) return parts[0]
   return parts.every(p => p.length <= 140) ? parts.join(', ') : parts.join(' ')
+}
+
+/** Education title line only (bold in UI): strip accidental markdown. */
+function formatEducationTitleLine(s) {
+  return String(s || '')
+    .replace(/\*\*/g, '')
+    .replace(/^\s*#+\s*/, '')
+    .trim()
+}
+
+/** Split lines that embed newlines so line 1 = title, line 2+ = description for each credential. */
+function expandEducationRawLines(rawLines) {
+  const out = []
+  for (const l of rawLines) {
+    const s = String(l).trim()
+    if (!s) continue
+    s.split(/\r?\n/).forEach(part => {
+      const p = part.trim()
+      if (p) out.push(p)
+    })
+  }
+  return out
 }
 
 /** Classify a single contact fragment for strict display order. */
@@ -833,10 +858,13 @@ function normalizeTailoredResumeJson(raw) {
   while (websites.length < 2) websites.push('')
   websites = websites.slice(0, 2)
   const sections = Array.isArray(raw.sections)
-    ? raw.sections.map(s => ({
-        title: String(s.title || '').trim(),
-        lines: Array.isArray(s.lines) ? s.lines.map(l => String(l)) : [],
-      }))
+    ? raw.sections.map(s => {
+        const title = String(s.title || '').trim()
+        const rawLines = Array.isArray(s.lines) ? s.lines.map(l => String(l)) : []
+        const lines =
+          resumeSectionId(title) === 'education' ? expandEducationRawLines(rawLines) : rawLines
+        return { title, lines }
+      })
     : []
   return {
     version: TAILORED_RESUME_JSON_VERSION,
@@ -976,40 +1004,42 @@ function TailoredResumeJsonProjectLines({ lines }) {
 }
 
 function TailoredResumeJsonEducationLines({ lines }) {
-  const ls = lines.map(l => String(l).trim()).filter(Boolean)
+  const ls = expandEducationRawLines(lines.map(l => String(l).trim()).filter(Boolean))
   if (!ls.length) return null
   const blocks = splitEducationLines(ls)
   return (
     <>
       {blocks.map((b, idx) => (
         <div key={idx} style={{ marginBottom: 10 }}>
+          {/* Line 1 only: bold title (school / certificate + platform). */}
           <div
             style={{
               fontSize: 11,
               fontWeight: 700,
+              fontStyle: 'normal',
               lineHeight: 1.45,
               color: C.resumeBody,
             }}
           >
-            {b.title}
+            {formatEducationTitleLine(b.title)}
           </div>
-          <div style={{ fontWeight: 400, fontStyle: 'normal' }}>
-            {b.desc.length ? (
-              <p
-                style={{
-                  margin: '2px 0 0',
-                  fontSize: 11,
-                  fontWeight: 400,
-                  fontStyle: 'normal',
-                  lineHeight: 1.5,
-                  color: C.resumeBody,
-                  whiteSpace: 'normal',
-                }}
-              >
+          {/* Line 2+: always regular weight — never bold. */}
+          {b.desc.length ? (
+            <div
+              style={{
+                marginTop: 2,
+                fontSize: 11,
+                fontWeight: 400,
+                fontStyle: 'normal',
+                lineHeight: 1.5,
+                color: C.resumeBody,
+              }}
+            >
+              <p style={{ margin: 0, fontWeight: 400, fontStyle: 'normal', color: 'inherit' }}>
                 {joinEducationDescriptionParts(b.desc)}
               </p>
-            ) : null}
-          </div>
+            </div>
+          ) : null}
         </div>
       ))}
     </>
@@ -1894,14 +1924,14 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         '    { "title": "SKILLS", "lines": ["- Skill one", "- Skill two"] },\n' +
         '    { "title": "EXPERIENCE", "lines": ["Job Title    Start – End", "Company", "- bullet", "- bullet"] },\n' +
         '    { "title": "PROJECTS", "lines": ["ProjectTitle - Tool A • Tool B • Tool C", "One brief description paragraph per project.", "OtherProject - React • Node"] },\n' +
-        '    { "title": "EDUCATION", "lines": ["CompTIA A+ (in progress)", "Expected completion and details.", "University Name — Degree"] }\n' +
+        '    { "title": "EDUCATION", "lines": ["Google IT Professional Certificate - Coursera", "IT Fundamentals, Project Management", "University Name — Degree", "Major, Honors"] }\n' +
         '  ]\n' +
         '}\n' +
         'Rules: contact.websites must be an array of EXACTLY two strings (use empty string "" if a slot is unused). ' +
         'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
         'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n' +
         'PROJECTS lines: for each project, first line MUST be "ProjectName - tool1 • tool2 • tool3" (space-dash-space after name; tools separated by •). Following lines are a short description only.\n' +
-        'EDUCATION lines: each school or certification title on its own first line (bold in the UI). Details below must be plain text only: use commas between multiple items (e.g. IT Fundamentals, Project Management). Do not use bullet lists, dashes, or • characters in education descriptions.\n' +
+        'EDUCATION lines: for each credential or school, put the title on line 1 (e.g. "Google IT Professional Certificate - Coursera"); put all details on line 2+ as plain text (e.g. "IT Fundamentals, Project Management"). The UI renders line 1 bold and line 2+ regular weight only—never put bold markdown in JSON. Use commas between multiple detail items. Do not use bullet lists, dashes, or • in education detail lines.\n' +
         'SKILLS lines: no category labels. Use one "- Skill name" per line in the array (order matters). First five lines = five most job-relevant skills; remaining skills follow. Do not use a vertical list in prose—each line is one skill; the UI joins them with • and wraps as a paragraph.\n'
 
       const userContent =
