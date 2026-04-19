@@ -405,7 +405,6 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
             y += 12
           })
         }
-        y += 2
       }
       continue
     }
@@ -920,7 +919,7 @@ function TailoredResumeJsonProjectLines({ lines }) {
   return (
     <>
       {blocks.map((b, idx) => (
-        <div key={idx} style={{ marginBottom: 12 }}>
+        <div key={idx} style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 11, lineHeight: 1.45, color: C.resumeBody }}>
             <span style={{ fontWeight: 700 }}>{b.title}</span>
             {b.tools ? (
@@ -959,22 +958,34 @@ function TailoredResumeJsonEducationLines({ lines }) {
     <>
       {blocks.map((b, idx) => (
         <div key={idx} style={{ marginBottom: 10 }}>
-          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.45, color: C.resumeBody }}>{b.title}</div>
-          {b.desc.map((d, j) => (
-            <p
-              key={j}
-              style={{
-                margin: '2px 0 0',
-                fontSize: 11,
-                fontWeight: 400,
-                lineHeight: 1.5,
-                color: C.resumeBody,
-                whiteSpace: 'pre-wrap',
-              }}
-            >
-              {d}
-            </p>
-          ))}
+          <div
+            style={{
+              fontSize: 11,
+              fontWeight: 700,
+              lineHeight: 1.45,
+              color: C.resumeBody,
+            }}
+          >
+            {b.title}
+          </div>
+          <div style={{ fontWeight: 400, fontStyle: 'normal' }}>
+            {b.desc.map((d, j) => (
+              <p
+                key={j}
+                style={{
+                  margin: '2px 0 0',
+                  fontSize: 11,
+                  fontWeight: 400,
+                  fontStyle: 'normal',
+                  lineHeight: 1.5,
+                  color: C.resumeBody,
+                  whiteSpace: 'pre-wrap',
+                }}
+              >
+                {d}
+              </p>
+            ))}
+          </div>
         </div>
       ))}
     </>
