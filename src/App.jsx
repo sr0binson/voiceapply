@@ -143,13 +143,12 @@ function Dots() {
 
 /** jsPDF: match C.kitResumeBg #fafafa — full-bleed fill every page (avoids white seams). */
 const PDF_RESUME_BG = [250, 250, 250]
-/** Tailored resume on-screen palette (jsPDF uses Helvetica as the DM Sans substitute). */
-const PDF_NAME = [10, 10, 9]
-const PDF_HEADLINE = [51, 51, 51]
-const PDF_BODY = [28, 28, 26] // #1c1c1a
-const PDF_SECTION_TITLE = [44, 44, 40] // #2c2c28
-const PDF_LINK = [21, 122, 115] // C.resumeLinkCyan
-const PDF_MUTED = [107, 107, 100]
+/** Foreground text for tailored resume PDF — #1c1c1a only (name, headline, body, bullets, section titles, job titles, contact). */
+const PDF_INK = [28, 28, 26]
+const PDF_NAME = PDF_INK
+const PDF_HEADLINE = PDF_INK
+const PDF_BODY = PDF_INK
+const PDF_SECTION_TITLE = PDF_INK
 /** Section underline — C.borderStrong-ish, not near-black (avoids a “bar” at page breaks). */
 const PDF_SECTION_RULE = [217, 217, 215]
 
@@ -169,7 +168,7 @@ function pdfNormalizeResumeUrl(s) {
   return `https://${t}`
 }
 
-/** Contact row: location • phone • email • LinkedIn • portfolio (portfolio omitted if empty). Links cyan #4ecdc4, not underlined. */
+/** Contact row: location • phone • email • LinkedIn • portfolio (links still clickable; ink #1c1c1a). */
 function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   const parts = []
   if (String(data.location || '').trim()) parts.push({ text: String(data.location).trim() })
@@ -189,8 +188,6 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   if (!parts.length) return startY
 
   const sep = '  •  '
-  const cyan = [78, 205, 196]
-  const muted = [100, 100, 96]
   let x = margin
   let y = startY
   const maxX = margin + contentW
@@ -201,7 +198,7 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
 
   parts.forEach((p, i) => {
     if (i > 0) {
-      doc.setTextColor(...muted)
+      doc.setTextColor(...PDF_INK)
       const sw = doc.getTextWidth(sep)
       if (x + sw > maxX && x > margin) {
         x = margin
@@ -217,11 +214,11 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(...cyan)
+      doc.setTextColor(...PDF_INK)
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
-      doc.setTextColor(...muted)
+      doc.setTextColor(...PDF_INK)
       doc.text(label, x, y)
     }
     x += w
@@ -229,7 +226,7 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   return y + 6
 }
 
-/** Contact row from tailored JSON: matches TailoredResumeJsonContactRow (body #1c1c1a, links #157a73, muted separators). */
+/** Contact row from tailored JSON — same #1c1c1a ink as the rest of the resume PDF. */
 function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, { scale = 1 } = {}) {
   const c = normalizeTailoredResumeJson({ contact }).contact
   const parts = []
@@ -257,7 +254,7 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
 
   parts.forEach((p, i) => {
     if (i > 0) {
-      doc.setTextColor(...PDF_MUTED)
+      doc.setTextColor(...PDF_INK)
       const sw = doc.getTextWidth(sep)
       if (x + sw > maxX && x > margin) {
         x = margin
@@ -273,11 +270,11 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(...PDF_LINK)
+      doc.setTextColor(...PDF_INK)
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
-      doc.setTextColor(...PDF_BODY)
+      doc.setTextColor(...PDF_INK)
       doc.text(label, x, y)
     }
     x += w
@@ -312,6 +309,13 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   const gap = n => n * scale
   const bulletIndent = 12 * scale
   const bulletX = margin + 3 * scale
+  /** PDF hierarchy: name (20) → section headers → headline (12) → body / job titles (11). */
+  const PDF_HEADLINE_PT = 12
+  const PDF_BODY_PT = 11
+  const PDF_SECTION_HEADER_PT = 13
+  const sectionGapBefore = 16
+  const sectionGapTitleToRule = 7
+  const sectionGapAfterRule = 12
 
   pdfResumePageBackground(doc)
 
@@ -334,7 +338,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
 
   if (d.headline) {
     const hl = normalizeHeadlineDisplay(d.headline)
-    doc.setFontSize(fs(12))
+    doc.setFontSize(fs(PDF_HEADLINE_PT))
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...PDF_HEADLINE)
     const hlLines = doc.splitTextToSize(hl, contentW)
@@ -350,7 +354,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
     if (!bulletBuf.length) return
     if (sectionId === 'skills') {
       const txt = bulletBuf.join(' • ')
-      doc.setFontSize(fs(11))
+      doc.setFontSize(fs(PDF_BODY_PT))
       doc.setFont('helvetica', 'normal')
       doc.setTextColor(...PDF_BODY)
       doc.splitTextToSize(txt, contentW).forEach(line => {
@@ -361,7 +365,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
     } else {
       bulletBuf.forEach(b => {
         checkPage(18)
-        doc.setFontSize(fs(11))
+        doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(...PDF_BODY)
         const lines = doc.splitTextToSize(b, contentW - bulletIndent)
@@ -383,17 +387,17 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   for (const sec of d.sections) {
     const sid = resumeSectionId(sec.title)
     const ls = (sec.lines || []).map(l => String(l).trim()).filter(Boolean)
-    checkPage(40)
-    y += gap(6)
-    doc.setFontSize(fs(9))
+    checkPage(52)
+    y += gap(sectionGapBefore)
+    doc.setFontSize(fs(PDF_SECTION_HEADER_PT))
     doc.setFont('helvetica', 'bold')
     doc.setTextColor(...PDF_SECTION_TITLE)
     doc.text(String(sec.title || 'SECTION').toUpperCase(), margin, y)
-    y += gap(4)
+    y += gap(sectionGapTitleToRule)
     doc.setDrawColor(...PDF_SECTION_RULE)
     doc.setLineWidth(0.5)
     doc.line(margin, y, pageW - margin, y)
-    y += gap(10)
+    y += gap(sectionGapAfterRule)
 
     if (sid === 'projects') {
       const blocks = splitProjectLines(ls)
@@ -405,7 +409,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       for (let bi = 0; bi < blocks.length; bi++) {
         const b = blocks[bi]
         checkPage(28)
-        doc.setFontSize(fs(11))
+        doc.setFontSize(fs(PDF_BODY_PT))
         doc.setTextColor(...PDF_BODY)
         doc.setFont('helvetica', 'bold')
         const tw = doc.getTextWidth(b.title)
@@ -437,7 +441,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         if (b.desc.length) y += gap(projGapTitleToBody)
         for (const dline of b.desc) {
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(fs(11))
+          doc.setFontSize(fs(PDF_BODY_PT))
           doc.setTextColor(...PDF_BODY)
           doc.splitTextToSize(dline, contentW).forEach(line => {
             checkPage(16)
@@ -455,7 +459,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       const blocks = splitEducationLines(eduLs)
       for (const b of blocks) {
         checkPage(22)
-        doc.setFontSize(fs(11))
+        doc.setFontSize(fs(PDF_BODY_PT))
         doc.setTextColor(...PDF_BODY)
         doc.setFont('helvetica', 'bold')
         const titleText = formatEducationTitleLine(b.title)
@@ -496,7 +500,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         const first = para[0]
         const { title: jobTitle, dates } = splitTitleAndDates(first)
         checkPage(22)
-        doc.setFontSize(fs(11))
+        doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
         doc.setTextColor(...PDF_BODY)
         doc.text(jobTitle, margin, y)
@@ -518,7 +522,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           })
         }
       } else {
-        doc.setFontSize(fs(11))
+        doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'normal')
         doc.setTextColor(...PDF_BODY)
         doc.splitTextToSize(para.join('\n'), contentW).forEach(line => {
@@ -594,7 +598,7 @@ function generateResumePDF(data) {
   }
   doc.setFontSize(25); doc.setFont('helvetica','bold'); doc.setTextColor(28,28,26)
   doc.text(data.name||'', margin, y); y += 24
-  if (data.tagline) { doc.setFontSize(12); doc.setFont('helvetica','normal'); doc.setTextColor(80,80,76); doc.text(data.tagline, margin, y); y += 16 }
+  if (data.tagline) { doc.setFontSize(12); doc.setFont('helvetica','normal'); doc.setTextColor(28,28,26); doc.text(data.tagline, margin, y); y += 16 }
   y = pdfDrawResumeContactLine(doc, margin, contentW, y, data)
   doc.setDrawColor(200, 200, 196)
   doc.setLineWidth(0.5)
@@ -615,7 +619,7 @@ function generateResumePDF(data) {
   })
   if (data.projects?.length) {
     sectionHeader('Projects')
-    data.projects.forEach(p => { addLine(`${p.name}    ${p.tech}`, {bold:true, lineH:15}); addLine(p.desc, {color:[80,80,76], lineH:14}); y += 4 })
+    data.projects.forEach(p => { addLine(`${p.name}    ${p.tech}`, {bold:true, lineH:15}); addLine(p.desc, {color:[28,28,26], lineH:14}); y += 4 })
   }
   if (data.education?.length) { sectionHeader('Education & Certifications'); data.education.forEach(e => addLine(e, {lineH:15})) }
   doc.save(`${(data.name||'Resume').replace(/\s+/g,'_')}_Resume.pdf`)
@@ -656,6 +660,7 @@ function buildTailoredResumeSystemPrompt(experienceLevel) {
       : ''
   return (
     'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Produce one complete, polished version — your best layout and wording in this single response; do not assume a second pass. Integrate job-description alignment (keywords and role fit), resume truth (only source of facts), and VoicePrint (tone/style only when provided). Skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. Never hallucinate. Never use emojis. ' +
+    'Contact line: in contact.websites, always omit https:// and http:// from every URL (show domain and path only, e.g. linkedin.com/in/username). ' +
     `Candidate experience level (user setting): ${level}. ${pageRule}${entryMidDensity}`
   )
 }
@@ -2012,7 +2017,7 @@ function MyResumePlusSection({
         '    "location": "City, ST or region",\n' +
         '    "phone": "One phone number as plain text",\n' +
         '    "email": "address@domain.com",\n' +
-        '    "websites": ["https://first-site-or-linkedin", "https://second-site-or-portfolio"]\n' +
+        '    "websites": ["linkedin.com/in/username", "yoursite.com/portfolio"]\n' +
         '  },\n' +
         '  "sections": [\n' +
         '    { "title": "SUMMARY", "lines": ["paragraph text"] },\n' +
@@ -2023,6 +2028,7 @@ function MyResumePlusSection({
         '  ]\n' +
         '}\n' +
         'Rules: contact.websites must be an array of EXACTLY two strings (use empty string "" if a slot is unused). ' +
+        'Contact URLs — for every user: always display website strings without the https:// or http:// prefix (e.g. linkedin.com/in/janedoe, github.com/janedoe, portfolio.example.com). Never include the scheme in the JSON; the app adds it for links. ' +
         'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
         'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n' +
         'PROJECTS lines: for each project, first line MUST be "ProjectName - tool1 • tool2 • tool3" (space-dash-space after name; tools separated by •). Following lines are a short description only.\n' +
