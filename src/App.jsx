@@ -30,13 +30,14 @@ const C = {
   kitResumeBg: '#fafafa',
   /** Edit textarea in myResume+ tailored resume — same family as kitResumeBg, one step lighter */
   kitResumeTextareaBg: '#fcfcfc',
-  /** Tailored resume header: name row always larger than headline row (px-locked in UI) */
-  resumeName: '#0a0a09',
-  /** Standard dark grey — clearly not black; softer than resumeName */
-  resumeHeadline: '#333333',
-  resumeSectionTitle: '#2c2c28',
-  resumeBody: '#1c1c1a',
-  resumeLinkCyan: '#157a73',
+  /** Tailored resume (generated JSON / plaintext preview): neutral greys, no brown undertones. */
+  resumeName: '#0f0f0f',
+  resumeHeadline: '#3a3a3a',
+  /** Plain contact text (location, phone); links use C.cyan */
+  resumeContact: '#8f8f8f',
+  resumeContactSep: '#b0b0b0',
+  resumeSectionTitle: '#363636',
+  resumeBody: '#4a4a4a',
 }
 
 function Label({ children }) {
@@ -1014,16 +1015,24 @@ function TailoredResumeJsonContactRow({ contact }) {
   const c = normalizeTailoredResumeJson({ contact }).contact
   const chunks = []
   let k = 0
-  const sep = <span key={`sep-${k++}`} style={{ color: C.muted, userSelect: 'none' }}> · </span>
+  const sep = <span key={`sep-${k++}`} style={{ color: C.resumeContactSep, userSelect: 'none' }}> · </span>
   const pushSep = () => {
     if (chunks.length) chunks.push(sep)
   }
   if (c.location) {
-    chunks.push(<span key={`loc-${k++}`}>{c.location}</span>)
+    chunks.push(
+      <span key={`loc-${k++}`} style={{ color: C.resumeContact }}>
+        {c.location}
+      </span>,
+    )
   }
   if (c.phone) {
     pushSep()
-    chunks.push(<span key={`ph-${k++}`}>{c.phone}</span>)
+    chunks.push(
+      <span key={`ph-${k++}`} style={{ color: C.resumeContact }}>
+        {c.phone}
+      </span>,
+    )
   }
   if (c.email) {
     pushSep()
@@ -1049,7 +1058,7 @@ function TailoredResumeJsonContactRow({ contact }) {
         fontSize: 10,
         lineHeight: 1.45,
         fontWeight: 400,
-        color: C.resumeBody,
+        color: C.resumeContact,
         whiteSpace: 'nowrap',
         overflowX: 'auto',
         overflowY: 'hidden',
@@ -1072,11 +1081,11 @@ function TailoredResumeJsonProjectLines({ lines }) {
       {blocks.map((b, idx) => (
         <div key={idx} style={{ marginBottom: 6 }}>
           <div style={{ fontSize: 11, lineHeight: 1.45, color: C.resumeBody }}>
-            <span style={{ fontWeight: 700 }}>{b.title}</span>
+            <span style={{ fontWeight: 700, color: C.resumeSectionTitle }}>{b.title}</span>
             {b.tools ? (
               <>
-                <span style={{ fontWeight: 400 }}>{' - '}</span>
-                <span style={{ fontWeight: 400 }}>{b.tools}</span>
+                <span style={{ fontWeight: 400, color: C.resumeBody }}>{' - '}</span>
+                <span style={{ fontWeight: 400, color: C.resumeBody }}>{b.tools}</span>
               </>
             ) : null}
           </div>
@@ -1116,7 +1125,7 @@ function TailoredResumeJsonEducationLines({ lines }) {
               fontWeight: 700,
               fontStyle: 'normal',
               lineHeight: 1.45,
-              color: C.resumeBody,
+              color: C.resumeSectionTitle,
             }}
           >
             {formatEducationTitleLine(b.title)}
@@ -1161,7 +1170,7 @@ function TailoredResumeJsonSkillsInline({ items }) {
         <span key={i}>
           {item}
           {i < items.length - 1 && (
-            <span style={{ color: C.muted, userSelect: 'none' }} aria-hidden>
+            <span style={{ color: C.resumeContactSep, userSelect: 'none' }} aria-hidden>
               {' '}
               •{' '}
             </span>
@@ -1418,7 +1427,7 @@ function lineLooksLikeContact(line) {
 const LINKIFY_CONTACT_RE = /(https?:\/\/[^\s|•]+|www\.[^\s|•]+|[\w.%+-]+@[\w.-]+\.[A-Za-z]{2,})/gi
 
 const linkStyleContact = {
-  color: C.resumeLinkCyan,
+  color: C.cyan,
   textDecoration: 'underline',
   display: 'inline-block',
   whiteSpace: 'nowrap',
@@ -1484,7 +1493,7 @@ function TailoredResumeFirstHeader({ paraLines }) {
           fontSize: 11,
           lineHeight: 1.55,
           fontWeight: 400,
-          color: C.resumeBody,
+          color: C.resumeContact,
           wordBreak: 'normal',
           overflowWrap: 'break-word',
         }}
@@ -1585,7 +1594,7 @@ function TailoredExperienceParagraph({ paraLines }) {
           marginBottom: rest.length ? 3 : 5,
         }}
       >
-        <span style={{ fontWeight: 700, fontSize: 11, color: C.resumeBody, lineHeight: 1.35 }}>{title}</span>
+        <span style={{ fontWeight: 700, fontSize: 11, color: C.resumeSectionTitle, lineHeight: 1.35 }}>{title}</span>
         {dates ? (
           <span
             style={{
@@ -1633,7 +1642,7 @@ function TailoredTitleBodyParagraph({ paraLines }) {
         style={{
           fontWeight: 700,
           fontSize: 11,
-          color: C.resumeBody,
+          color: C.resumeSectionTitle,
           lineHeight: 1.35,
           marginBottom: rest.length ? 4 : 0,
         }}
@@ -1682,7 +1691,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
             <span key={i}>
               {item.trim()}
               {i < bulletBuf.length - 1 && (
-                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                <span style={{ color: C.resumeContactSep, userSelect: 'none', fontSize: 10 }} aria-hidden>
                   {' '}
                   •{' '}
                 </span>
@@ -2320,15 +2329,14 @@ function MyResumePlusSection({
   )
 }
 
-function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, applyThreshold, override) {
+function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, userLinks, bannedPhrases, applyThreshold) {
   const voiceInstruction = (voiceSection && voiceSection.trim().length > 0)
     ? 'Match the candidate voice profile exactly — their tone, rhythm, word choices, and anything they flag as unnatural. The voice profile is the only style guide. Do not impose your own style.'
     : 'No voice profile provided. Write professionally and neutrally. Clear, direct, human-sounding.'
 
   const threshold = Number.isFinite(Number(applyThreshold)) ? Math.max(0, Math.min(100, Number(applyThreshold))) : 85
-  const scoringRules = override
-    ? 'OVERRIDE MODE: User has chosen to apply regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what. Still provide an honest score and verdict but always include all outputs.'
-    : `SCORING: 0-100. ${threshold}+=APPLY+full output (include coverLetter and outreachMessage). <${threshold}=SKIP: verdict SKIP, set coverLetter to "" and outreachMessage to "" (no draft apply materials). Verdict SCAM: set coverLetter and outreachMessage to "".\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
+  const scoringRules =
+    `SCORING: 0-100. ${threshold}+=APPLY+full output (include coverLetter and outreachMessage). <${threshold}=SKIP: verdict SKIP, set coverLetter to "" and outreachMessage to "" (no draft apply materials). Verdict SCAM: set coverLetter and outreachMessage to "".\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
 
   const bestVersionBar =
     'BEST VERSION (one response — combine all three):\n' +
@@ -2687,6 +2695,19 @@ export default function App() {
     const updated = [entry,...history].slice(0,50)
     setHistory(updated); localStorage.setItem('va_history',JSON.stringify(updated)); setCurrentResult(entry)
   }
+  /** Score below threshold: unlock Upskill + myResume+ without re-calling the analyzer (same stored result). */
+  function markApplyAnywayForResult(entry) {
+    if (!entry) return
+    const next = { ...entry, applyAnyway: true }
+    setCurrentResult(next)
+    setHistory(h => {
+      const u = h.map(x => (x.id === entry.id ? next : x))
+      try {
+        localStorage.setItem('va_history', JSON.stringify(u))
+      } catch { /* ignore */ }
+      return u
+    })
+  }
   function onVoiceSaved(p) { setVoiceProfile(p); localStorage.setItem('va_voice',JSON.stringify(p)) }
   function onProfileSaved(p) { setProfile(p); localStorage.setItem('va_profile',JSON.stringify(p)) }
   const applyLetterThreshold = Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85
@@ -2760,6 +2781,7 @@ export default function App() {
                 setTab={setTab}
                 profile={profile}
                 experienceLevel={experienceLevel}
+                onMarkApplyAnyway={markApplyAnywayForResult}
               />
             )}
             {tab==='Documents' && (
@@ -2794,6 +2816,7 @@ function AnalyzeTab({
   setTab,
   profile,
   experienceLevel,
+  onMarkApplyAnyway,
 }) {
   const [jd, setJd] = useState('')
   const [inputMode, setInputMode] = useState('description')
@@ -2803,7 +2826,7 @@ function AnalyzeTab({
   const [error, setError] = useState('')
   const msgs = ['Reading the job posting...','Checking for scam signals...','Scoring your skills match...','Writing your cover letter...','Almost done...']
 
-  async function analyze(override = false) {
+  async function analyze() {
     if (!keySaved) { alert('Save your API key first.'); return }
     if (inputMode === 'description' && !jd.trim()) { alert('Paste a job description first.'); return }
     if (inputMode === 'url' && !jobUrl.trim()) { alert('Paste a job URL first.'); return }
@@ -2824,14 +2847,14 @@ function AnalyzeTab({
       const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST',
         headers:{ 'Content-Type':'application/json', 'x-api-key':apiKey, 'anthropic-version':'2023-06-01', 'anthropic-dangerous-direct-browser-access':'true' },
-        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,bannedPhrases,applyThreshold,override), messages:[{ role:'user', content:userPrompt }] }),
+        body:JSON.stringify({ model:'claude-sonnet-4-20250514', max_tokens:2500, system:buildSystemPrompt(resumeSection,voiceSection,userName,userContact,userLinks,bannedPhrases,applyThreshold), messages:[{ role:'user', content:userPrompt }] }),
       })
       if (!res.ok) { const e=await res.json().catch(()=>({})); throw new Error(e.error?.message||'API error '+res.status) }
       const data = await res.json()
       const parsed = JSON.parse(data.content.map(b=>b.text||'').join('').replace(/```json|```/g,'').trim())
       onResult({
         ...parsed,
-        applyAnyway: !!override,
+        applyAnyway: false,
         analyzedJobPosting: inputMode === 'description' ? jd.trim() : '',
         jobPostingUrl: inputMode === 'url' ? jobUrl.trim() : '',
       })
@@ -2909,7 +2932,7 @@ function AnalyzeTab({
         )}
         <button
           type="button"
-          onClick={() => analyze(false)}
+          onClick={() => analyze()}
           disabled={loading}
           style={{
             border: 'none',
@@ -2937,7 +2960,7 @@ function AnalyzeTab({
       {currentResult && (
         <ResultCard
           result={currentResult}
-          onOverride={() => analyze(true)}
+          onApplyAnyway={() => currentResult && onMarkApplyAnyway(currentResult)}
           apiKey={apiKey}
           keySaved={keySaved}
           voiceProfile={voiceProfile}
@@ -2950,7 +2973,7 @@ function AnalyzeTab({
   )
 }
 
-function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold, setTab, experienceLevel }) {
+function ResultCard({ result:r, onApplyAnyway, apiKey, keySaved, voiceProfile, matchThreshold, setTab, experienceLevel }) {
   const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
   const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
   const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
@@ -3144,8 +3167,8 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
           <div style={{ display:'inline-flex', alignItems:'center', gap:7, fontSize:12, fontWeight:600, padding:'5px 14px', borderRadius:20, background:vc.bg, color:vc.color, border:`1px solid ${vc.border}` }}>
             <span style={{ width:6, height:6, borderRadius:'50%', background:'currentColor', display:'inline-block' }} />{vc.label}
           </div>
-          {r.verdict !== 'APPLY' && onOverride && (
-            <button onClick={onOverride} style={{ fontSize:12, padding:'5px 14px', borderRadius:20, background:C.surface2, border:`1px solid ${C.border}`, cursor:'pointer', color:C.muted, fontFamily:"'DM Sans', sans-serif" }}>
+          {r.verdict === 'SKIP' && onApplyAnyway && (
+            <button type="button" onClick={onApplyAnyway} style={{ fontSize:12, padding:'5px 14px', borderRadius:20, background:C.surface2, border:`1px solid ${C.border}`, cursor:'pointer', color:C.muted, fontFamily:"'DM Sans', sans-serif" }}>
               Apply anyway →
             </button>
           )}
