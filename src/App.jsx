@@ -144,6 +144,7 @@ function Dots() {
 
 /** jsPDF: match C.kitResumeBg #fafafa — full-bleed fill every page (avoids white seams). */
 const PDF_RESUME_BG = [250, 250, 250]
+/** jsPDF 4.2+ (package: jspdf ^4.2.1): `doc.setTextColor('#rrggbb')` uses the color module’s CSS-style parser — prefer hex over RGB for correct neutrals. */
 /** Section underline — light neutral rule, not body text. */
 const PDF_SECTION_RULE = [217, 217, 215]
 
@@ -198,7 +199,7 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
         x = margin
         y += lineH
       }
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(sep, x, y)
       x += sw
     }
@@ -209,11 +210,11 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(78, 205, 196)
+      doc.setTextColor('#4ecdc4')
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(label, x, y)
     }
     x += w
@@ -254,7 +255,7 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
         x = margin
         y += lineH
       }
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(sep, x, y)
       x += sw
     }
@@ -265,11 +266,11 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(78, 205, 196)
+      doc.setTextColor('#4ecdc4')
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(label, x, y)
     }
     x += w
@@ -311,23 +312,10 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   const PDF_HEADLINE_PT = 12
   const PDF_BODY_PT = 11
   const PDF_SECTION_HEADER_PT = 12
-  /** Match Experience: 15 after title row, 13 per wrapped body line (bullets, company, descriptions). */
+  /** Same vertical rhythm for Summary, Skills, Experience, Projects, Education (PDF export). */
   const expGapAfterTitle = 15
-  const expBodyLine = 13
-  /** Space before 2nd+ non-project block (experience bullets, etc.). */
+  const expBodyLine = 14
   const blockGapBefore = 12
-  /**
-   * Vertical spacing copied from TailoredResumeJsonProjectLines / TailoredResumeJsonEducationLines
-   * (same numeric values as margin / lineHeight in those components).
-   */
-  const pdfScreenProjectBlockGap = 6
-  const pdfScreenProjectTitleLineStep = 11 * 1.45
-  const pdfScreenProjectDescMarginTop = 2
-  const pdfScreenProjectDescLineStep = 11 * 1.5
-  const pdfScreenEduBlockGap = 10
-  const pdfScreenEduTitleLineStep = 11 * 1.45
-  const pdfScreenEduBodyMarginTop = 2
-  const pdfScreenEduBodyLineStep = 11 * 1.5
   const sectionGapBefore = 16
   const sectionGapTitleToRule = 7
   const sectionGapAfterRule = 12
@@ -347,7 +335,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   doc.setFontSize(fs(20))
   doc.setFont('helvetica', 'bold')
   checkPage(30)
-  doc.setTextColor(28, 28, 26)
+  doc.setTextColor('#1c1c1a')
   doc.text(d.name || 'Resume', margin, y)
   y += gap(26)
 
@@ -357,7 +345,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
     doc.setFont('helvetica', 'bold')
     const hlLines = doc.splitTextToSize(hl, contentW)
     checkPage(18)
-    doc.setTextColor(28, 28, 26)
+    doc.setTextColor('#1c1c1a')
     doc.text(hlLines[0] || '', margin, y)
     y += gap(15)
   }
@@ -373,9 +361,9 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       doc.setFont('helvetica', 'normal')
       doc.splitTextToSize(txt, contentW).forEach(line => {
         checkPage(16)
-        doc.setTextColor(28, 28, 26)
+        doc.setTextColor('#1c1c1a')
         doc.text(line, margin, y)
-        y += gap(14)
+        y += gap(expBodyLine)
       })
     } else {
       bulletBuf.forEach(b => {
@@ -386,15 +374,15 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         lines.forEach((line, li) => {
           checkPage(16)
           if (li === 0) {
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(PDF_BULLET, bulletX, y)
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin + bulletIndent, y)
           } else {
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin + bulletIndent, y)
           }
-          y += gap(14)
+          y += gap(expBodyLine)
         })
       })
     }
@@ -408,7 +396,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
     y += gap(sectionGapBefore)
     doc.setFontSize(fs(PDF_SECTION_HEADER_PT))
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(28, 28, 26)
+    doc.setTextColor('#1c1c1a')
     doc.text(String(sec.title || 'SECTION').toUpperCase(), margin, y)
     y += gap(sectionGapTitleToRule)
     doc.setDrawColor(...PDF_SECTION_RULE)
@@ -420,7 +408,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       const blocks = splitProjectLines(ls)
       for (let bi = 0; bi < blocks.length; bi++) {
         const b = blocks[bi]
-        if (bi > 0) y += gap(pdfScreenProjectBlockGap)
+        if (bi > 0) y += gap(blockGapBefore)
         checkPage(28)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
@@ -430,41 +418,39 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         const toolsW = b.tools ? doc.getTextWidth(toolsStr) : 0
         if (b.tools && tw + toolsW <= contentW) {
           doc.setFont('helvetica', 'bold')
-          doc.setTextColor(28, 28, 26)
+          doc.setTextColor('#1c1c1a')
           doc.text(b.title, margin, y)
           doc.setFont('helvetica', 'normal')
-          doc.setTextColor(28, 28, 26)
+          doc.setTextColor('#1c1c1a')
           doc.text(toolsStr, margin + tw, y)
-          y += gap(pdfScreenProjectTitleLineStep)
-          if (b.desc.length) y += gap(pdfScreenProjectDescMarginTop)
         } else {
           doc.setFont('helvetica', 'bold')
           doc.splitTextToSize(b.title, contentW).forEach(line => {
             checkPage(16)
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin, y)
-            y += gap(pdfScreenProjectTitleLineStep)
+            y += gap(expBodyLine)
           })
           if (b.tools) {
             doc.setFont('helvetica', 'normal')
             doc.splitTextToSize(toolsStr.trim(), contentW).forEach(line => {
               checkPage(16)
-              doc.setTextColor(28, 28, 26)
+              doc.setTextColor('#1c1c1a')
               doc.text(line, margin, y)
-              y += gap(pdfScreenProjectTitleLineStep)
+              y += gap(expBodyLine)
             })
           }
-          if (b.desc.length) y += gap(pdfScreenProjectDescMarginTop)
         }
+        y += gap(expGapAfterTitle)
         if (b.desc.length) {
           for (const dline of b.desc) {
             doc.setFont('helvetica', 'normal')
             doc.setFontSize(fs(PDF_BODY_PT))
             doc.splitTextToSize(dline, contentW).forEach(line => {
               checkPage(16)
-              doc.setTextColor(28, 28, 26)
+              doc.setTextColor('#1c1c1a')
               doc.text(line, margin, y)
-              y += gap(pdfScreenProjectDescLineStep)
+              y += gap(expBodyLine)
             })
           }
         }
@@ -476,7 +462,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       const eduLs = expandEducationRawLines(ls)
       const blocks = splitEducationLines(eduLs)
       blocks.forEach((b, ei) => {
-        if (ei > 0) y += gap(pdfScreenEduBlockGap)
+        if (ei > 0) y += gap(blockGapBefore)
         checkPage(22)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
@@ -485,25 +471,24 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         const eduBody = joinEducationDescriptionParts(b.desc)
         if (titleLines.length === 1) {
           checkPage(16)
-          doc.setTextColor(28, 28, 26)
+          doc.setTextColor('#1c1c1a')
           doc.text(titleLines[0], margin, y)
-          y += gap(pdfScreenEduTitleLineStep)
         } else {
           titleLines.forEach(line => {
             checkPage(16)
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin, y)
-            y += gap(pdfScreenEduTitleLineStep)
+            y += gap(expBodyLine)
           })
         }
-        if (eduBody) y += gap(pdfScreenEduBodyMarginTop)
+        y += gap(expGapAfterTitle)
         doc.setFont('helvetica', 'normal')
         if (eduBody) {
           doc.splitTextToSize(eduBody, contentW).forEach(line => {
             checkPage(16)
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin, y)
-            y += gap(pdfScreenEduBodyLineStep)
+            y += gap(expBodyLine)
           })
         }
       })
@@ -530,12 +515,12 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         checkPage(22)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(28, 28, 26)
+        doc.setTextColor('#1c1c1a')
         doc.text(jobTitle, margin, y)
         if (dates) {
           doc.setFont('helvetica', 'italic')
           const dw = doc.getTextWidth(dates)
-          doc.setTextColor(28, 28, 26)
+          doc.setTextColor('#1c1c1a')
           doc.text(dates, pageW - margin - dw, y)
           doc.setFont('helvetica', 'bold')
         }
@@ -544,7 +529,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           doc.setFont('helvetica', 'normal')
           doc.splitTextToSize(para[j], contentW).forEach(line => {
             checkPage(16)
-            doc.setTextColor(28, 28, 26)
+            doc.setTextColor('#1c1c1a')
             doc.text(line, margin, y)
             y += gap(expBodyLine)
           })
@@ -554,9 +539,9 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
         doc.setFont('helvetica', 'normal')
         doc.splitTextToSize(para.join('\n'), contentW).forEach(line => {
           checkPage(16)
-          doc.setTextColor(28, 28, 26)
+          doc.setTextColor('#1c1c1a')
           doc.text(line, margin, y)
-          y += gap(14)
+          y += gap(expBodyLine)
         })
       }
     }
@@ -594,7 +579,7 @@ function generateCoverLetterPDF(fullText) {
     if (line === '') { y += lineH * 0.5; continue }
     doc.splitTextToSize(line, contentW).forEach(w => {
       if (y > 720) { doc.addPage(); y = margin }
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(w, margin, y)
       y += lineH
     })
@@ -622,7 +607,7 @@ function generateResumePDF(data) {
     doc.setFont('helvetica', bold ? 'bold' : 'normal')
     doc.splitTextToSize(text, contentW - indent).forEach(line => {
       checkPage()
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text(line, margin + indent, y)
       y += lineH
     })
@@ -632,23 +617,23 @@ function generateResumePDF(data) {
     checkPage(24)
     doc.setFontSize(9)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(28, 28, 26)
+    doc.setTextColor('#1c1c1a')
     doc.text(title.toUpperCase(), margin, y)
     y += 4
-    doc.setDrawColor(28, 28, 26)
+    doc.setDrawColor('#1c1c1a')
     doc.setLineWidth(1)
     doc.line(margin, y, pageW - margin, y)
     y += 10
   }
   doc.setFontSize(25)
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(28, 28, 26)
+  doc.setTextColor('#1c1c1a')
   doc.text(data.name || '', margin, y)
   y += 24
   if (data.tagline) {
     doc.setFontSize(12)
     doc.setFont('helvetica', 'normal')
-    doc.setTextColor(28, 28, 26)
+    doc.setTextColor('#1c1c1a')
     doc.text(data.tagline, margin, y)
     y += 16
   }
@@ -667,11 +652,11 @@ function generateResumePDF(data) {
       checkPage(18)
       doc.setFontSize(10.5)
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor('#1c1c1a')
       doc.text('-', margin, y)
       doc.splitTextToSize(b, contentW - 14).forEach(line => {
         checkPage()
-        doc.setTextColor(28, 28, 26)
+        doc.setTextColor('#1c1c1a')
         doc.text(line, margin + 14, y)
         y += 15
       })
