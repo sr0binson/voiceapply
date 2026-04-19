@@ -638,13 +638,17 @@ function loadExperienceLevel() {
 /** Tailored JSON resume system prompt — page length follows Settings experience level. */
 function buildTailoredResumeSystemPrompt(experienceLevel) {
   const level = EXPERIENCE_LEVEL_OPTIONS.includes(experienceLevel) ? experienceLevel : 'Mid Level'
-  const pageRule =
-    level === 'Entry Level' || level === 'Mid Level'
-      ? 'Resume length: target one printed page. Prioritize relevance, keep bullets concise, avoid filler.'
-      : 'Resume length: at most two printed pages; use a second page only when needed for depth, not padding.'
+  const isEntryOrMid = level === 'Entry Level' || level === 'Mid Level'
+  const pageRule = isEntryOrMid
+    ? 'Resume length: target one printed page. Prioritize relevance, keep bullets concise, avoid filler.'
+    : 'Resume length: at most two printed pages; use a second page only when needed for depth, not padding.'
+  const entryMidDensity =
+    isEntryOrMid
+      ? ' Generate a concise one-page resume. Limit to 3-4 bullets per job maximum. Each bullet must be 1-2 lines max. Keep the summary to 3 sentences max. Be selective, prioritize the most relevant experience only.'
+      : ''
   return (
     'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Produce one complete, polished version — your best layout and wording in this single response; do not assume a second pass. Integrate job-description alignment (keywords and role fit), resume truth (only source of facts), and VoicePrint (tone/style only when provided). Skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. Never hallucinate. Never use emojis. ' +
-    `Candidate experience level (user setting): ${level}. ${pageRule}`
+    `Candidate experience level (user setting): ${level}. ${pageRule}${entryMidDensity}`
   )
 }
 
