@@ -1641,11 +1641,14 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         '  "sections": [\n' +
         '    { "title": "SUMMARY", "lines": ["paragraph text"] },\n' +
         '    { "title": "SKILLS", "lines": ["- Skill one", "- Skill two"] },\n' +
-        '    { "title": "EXPERIENCE", "lines": ["Job Title    Start – End", "Company", "- bullet", "- bullet"] }\n' +
+        '    { "title": "EXPERIENCE", "lines": ["Job Title    Start – End", "Company", "- bullet", "- bullet"] },\n' +
+        '    { "title": "PROJECTS", "lines": ["Project name    tech/stack", "Short description", "- optional bullet"] },\n' +
+        '    { "title": "EDUCATION", "lines": ["Degree    Year", "School"] }\n' +
         '  ]\n' +
         '}\n' +
         'Rules: contact.websites must be an array of EXACTLY two strings (use empty string "" if a slot is unused). ' +
-        'Facts only from the source resume. Reorder/emphasize sections as needed for the job.\n'
+        'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
+        'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n'
 
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
