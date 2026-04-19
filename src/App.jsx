@@ -422,8 +422,9 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           y += 13
         })
         doc.setFont('helvetica', 'normal')
-        for (const dline of b.desc) {
-          doc.splitTextToSize(dline, contentW).forEach(line => {
+        const eduBody = joinEducationDescriptionParts(b.desc)
+        if (eduBody) {
+          doc.splitTextToSize(eduBody, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
             y += 12
@@ -688,8 +689,13 @@ function splitEducationLines(ls) {
     }
     const title = ls[i++]
     const desc = []
-    while (i < ls.length && !lineLooksLikeResumeBulletLine(ls[i])) {
+    while (i < ls.length) {
       const line = ls[i]
+      if (lineLooksLikeResumeBulletLine(line)) {
+        desc.push(stripResumeBulletPrefix(line))
+        i++
+        continue
+      }
       const prev = desc.length ? desc[desc.length - 1] : title
       if (isLikelyEducationTitleLine(line, prev)) break
       desc.push(line)
@@ -754,6 +760,25 @@ function stripResumeBulletPrefix(t) {
     .replace(/^[-*]\s+/, '')
     .replace(/^[•▪]\s*/, '')
     .replace(/^\d+[.)]\s*/, '')
+}
+
+/** Education detail lines: plain prose only; commas between items, never • or list bullets. */
+function formatEducationDescriptionPlain(s) {
+  let t = String(s || '').trim()
+  if (!t) return ''
+  t = stripResumeBulletPrefix(t)
+  t = t.replace(/\s*[•·]\s*/g, ', ')
+  t = t.replace(/\s{2,}/g, ' ')
+  t = t.replace(/,\s*,+/g, ', ')
+  t = t.replace(/^\s*,\s*|\s*,\s*$/g, '')
+  return t.trim()
+}
+
+function joinEducationDescriptionParts(desc) {
+  const parts = (desc || []).map(formatEducationDescriptionPlain).filter(Boolean)
+  if (!parts.length) return ''
+  if (parts.length === 1) return parts[0]
+  return parts.every(p => p.length <= 140) ? parts.join(', ') : parts.join(' ')
 }
 
 /** Classify a single contact fragment for strict display order. */
@@ -969,9 +994,8 @@ function TailoredResumeJsonEducationLines({ lines }) {
             {b.title}
           </div>
           <div style={{ fontWeight: 400, fontStyle: 'normal' }}>
-            {b.desc.map((d, j) => (
+            {b.desc.length ? (
               <p
-                key={j}
                 style={{
                   margin: '2px 0 0',
                   fontSize: 11,
@@ -979,12 +1003,12 @@ function TailoredResumeJsonEducationLines({ lines }) {
                   fontStyle: 'normal',
                   lineHeight: 1.5,
                   color: C.resumeBody,
-                  whiteSpace: 'pre-wrap',
+                  whiteSpace: 'normal',
                 }}
               >
-                {d}
+                {joinEducationDescriptionParts(b.desc)}
               </p>
-            ))}
+            ) : null}
           </div>
         </div>
       ))}
@@ -1877,7 +1901,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
         'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n' +
         'PROJECTS lines: for each project, first line MUST be "ProjectName - tool1 • tool2 • tool3" (space-dash-space after name; tools separated by •). Following lines are a short description only.\n' +
-        'EDUCATION lines: each credential as a bold-worthy title line (e.g. certification or degree name), with details on the following lines before the next credential.\n' +
+        'EDUCATION lines: each school or certification title on its own first line (bold in the UI). Details below must be plain text only: use commas between multiple items (e.g. IT Fundamentals, Project Management). Do not use bullet lists, dashes, or • characters in education descriptions.\n' +
         'SKILLS lines: no category labels. Use one "- Skill name" per line in the array (order matters). First five lines = five most job-relevant skills; remaining skills follow. Do not use a vertical list in prose—each line is one skill; the UI joins them with • and wraps as a paragraph.\n'
 
       const userContent =
