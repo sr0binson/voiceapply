@@ -28,9 +28,9 @@ const C = {
   connectPanelBg: 'rgba(122,95,60,0.09)',
   connectPanelBorder: 'rgba(122,95,60,0.24)',
   connectPanelTitle: '#5c4a26',
-  kitResumeBg: '#faf9f6',
-  /** Edit textarea in myResume+ tailored resume — same greige family as kitResumeBg, one step lighter */
-  kitResumeTextareaBg: '#fdfcfa',
+  kitResumeBg: '#fafafa',
+  /** Edit textarea in myResume+ tailored resume — same family as kitResumeBg, one step lighter */
+  kitResumeTextareaBg: '#fcfcfc',
   kitCoverBg: '#f3f1ed',
   /** Tailored resume header: name row always larger than headline row (px-locked in UI) */
   resumeName: '#0a0a09',
@@ -142,11 +142,11 @@ function Dots() {
   )
 }
 
-/** jsPDF: letter page fill — very light greige (matches tailored resume preview). */
+/** jsPDF: letter page fill — lightest grey (matches tailored resume preview). */
 function pdfResumePageBackground(doc) {
   const w = doc.internal.pageSize.getWidth()
   const h = doc.internal.pageSize.getHeight()
-  doc.setFillColor(250, 249, 246)
+  doc.setFillColor(250, 250, 250)
   doc.rect(0, 0, w, h, 'F')
 }
 
@@ -217,6 +217,207 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
     x += w
   })
   return y + 6
+}
+
+/** Contact row from tailored JSON: location • phone • email • up to 2 URLs (cyan links). */
+function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact) {
+  const c = normalizeTailoredResumeJson({ contact }).contact
+  const parts = []
+  if (String(c.location || '').trim()) parts.push({ text: String(c.location).trim() })
+  if (String(c.phone || '').trim()) parts.push({ text: String(c.phone).trim() })
+  if (String(c.email || '').trim()) {
+    const em = String(c.email).trim()
+    parts.push({ text: em, url: `mailto:${em}` })
+  }
+  for (const w of c.websites || []) {
+    if (!String(w || '').trim()) continue
+    const raw = String(w).trim()
+    parts.push({ text: raw, url: pdfNormalizeResumeUrl(raw) })
+  }
+  if (!parts.length) return startY
+
+  const sep = '  •  '
+  const cyan = [78, 205, 196]
+  const muted = [100, 100, 96]
+  let x = margin
+  let y = startY
+  const maxX = margin + contentW
+  const fs = 9.5
+  const lineH = fs * 1.28
+  doc.setFontSize(fs)
+  doc.setFont('helvetica', 'normal')
+
+  parts.forEach((p, i) => {
+    if (i > 0) {
+      doc.setTextColor(...muted)
+      const sw = doc.getTextWidth(sep)
+      if (x + sw > maxX && x > margin) {
+        x = margin
+        y += lineH
+      }
+      doc.text(sep, x, y)
+      x += sw
+    }
+    const label = p.text
+    let w = doc.getTextWidth(label)
+    if (x + w > maxX && x > margin) {
+      x = margin
+      y += lineH
+    }
+    if (p.url) {
+      doc.setTextColor(...cyan)
+      doc.text(label, x, y)
+      doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
+    } else {
+      doc.setTextColor(...muted)
+      doc.text(label, x, y)
+    }
+    x += w
+  })
+  return y + 6
+}
+
+/** PDF from structured tailored resume JSON (matches on-screen layout, not plain-text dump). */
+function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
+  const d = normalizeTailoredResumeJson(data)
+  const doc = new jsPDF({ unit: 'pt', format: 'letter' })
+  const margin = 58
+  const pageW = 612
+  const contentW = pageW - margin * 2
+  let y = margin
+  pdfResumePageBackground(doc)
+  const checkPage = (need = 24) => {
+    if (y + need > 730) {
+      doc.addPage()
+      pdfResumePageBackground(doc)
+      y = margin
+    }
+  }
+
+  doc.setFontSize(22)
+  doc.setFont('helvetica', 'bold')
+  doc.setTextColor(28, 28, 26)
+  checkPage(30)
+  doc.text(d.name || 'Resume', margin, y)
+  y += 26
+
+  if (d.headline) {
+    const hl = normalizeHeadlineDisplay(d.headline)
+    doc.setFontSize(11)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(80, 80, 76)
+    const hlLines = doc.splitTextToSize(hl, contentW)
+    checkPage(18)
+    doc.text(hlLines[0] || '', margin, y)
+    y += 15
+  }
+
+  y = pdfDrawTailoredJsonContactLine(doc, margin, contentW, y, d.contact)
+  checkPage(16)
+  doc.setDrawColor(200, 200, 196)
+  doc.setLineWidth(0.5)
+  doc.line(margin, y, pageW - margin, y)
+  y += 10
+
+  const flushBullets = (bulletBuf, sectionId) => {
+    if (!bulletBuf.length) return
+    if (sectionId === 'skills') {
+      const txt = bulletBuf.join(' • ')
+      doc.setFontSize(10.5)
+      doc.setFont('helvetica', 'normal')
+      doc.setTextColor(28, 28, 26)
+      doc.splitTextToSize(txt, contentW).forEach(line => {
+        checkPage(16)
+        doc.text(line, margin, y)
+        y += 14
+      })
+    } else {
+      bulletBuf.forEach(b => {
+        checkPage(18)
+        doc.setFontSize(10.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(28, 28, 26)
+        doc.text('-', margin, y)
+        doc.splitTextToSize(b, contentW - 14).forEach(line => {
+          checkPage(16)
+          doc.text(line, margin + 14, y)
+          y += 14
+        })
+      })
+    }
+    bulletBuf.length = 0
+  }
+
+  for (const sec of d.sections) {
+    const sid = resumeSectionId(sec.title)
+    const ls = (sec.lines || []).map(l => String(l).trim()).filter(Boolean)
+    checkPage(36)
+    y += 6
+    doc.setFontSize(9)
+    doc.setFont('helvetica', 'bold')
+    doc.setTextColor(28, 28, 26)
+    doc.text(String(sec.title || 'SECTION').toUpperCase(), margin, y)
+    y += 4
+    doc.setDrawColor(28, 28, 26)
+    doc.setLineWidth(1)
+    doc.line(margin, y, pageW - margin, y)
+    y += 10
+
+    let bulletBuf = []
+    let i = 0
+    while (i < ls.length) {
+      if (lineLooksLikeResumeBulletLine(ls[i])) {
+        bulletBuf.push(stripResumeBulletPrefix(ls[i]))
+        i++
+        continue
+      }
+      flushBullets(bulletBuf, sid)
+      const para = []
+      while (i < ls.length && !lineLooksLikeResumeBulletLine(ls[i])) {
+        para.push(ls[i++])
+      }
+      if (!para.length) continue
+      if (sid === 'experience') {
+        const first = para[0]
+        const { title: jobTitle, dates } = splitTitleAndDates(first)
+        checkPage(22)
+        doc.setFontSize(10.5)
+        doc.setFont('helvetica', 'bold')
+        doc.setTextColor(28, 28, 26)
+        doc.text(jobTitle, margin, y)
+        if (dates) {
+          doc.setFont('helvetica', 'italic')
+          const dw = doc.getTextWidth(dates)
+          doc.text(dates, pageW - margin - dw, y)
+          doc.setFont('helvetica', 'bold')
+        }
+        y += 15
+        for (let j = 1; j < para.length; j++) {
+          doc.setFont('helvetica', 'normal')
+          doc.splitTextToSize(para[j], contentW).forEach(line => {
+            checkPage(16)
+            doc.text(line, margin, y)
+            y += 13
+          })
+        }
+      } else {
+        doc.setFontSize(10.5)
+        doc.setFont('helvetica', 'normal')
+        doc.setTextColor(28, 28, 26)
+        doc.splitTextToSize(para.join('\n'), contentW).forEach(line => {
+          checkPage(16)
+          doc.text(line, margin, y)
+          y += 14
+        })
+      }
+    }
+    flushBullets(bulletBuf, sid)
+  }
+
+  const safe = String(filenameBase || 'Resume')
+    .replace(/[^\w\-]+/g, '_')
+    .slice(0, 80)
+  doc.save(`${safe}_Resume.pdf`)
 }
 
 function generateCoverLetterPDF(fullText) {
@@ -1277,6 +1478,8 @@ function KitActionRow({
   editValue,
   onEditChange,
   greigeBg,
+  onDownloadPdf,
+  downloadDisabled,
 }) {
   return (
     <>
@@ -1297,6 +1500,11 @@ function KitActionRow({
           {regenLabel}
         </button>
         <CopyBtn text={copyText} style={{ marginTop: 0, minHeight: 32 }} />
+        {typeof onDownloadPdf === 'function' && (
+          <Btn small primary disabled={downloadDisabled} onClick={onDownloadPdf}>
+            Download PDF →
+          </Btn>
+        )}
         <button
           type="button"
           onClick={onEditInContent}
@@ -1748,6 +1956,16 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                         } catch { /* ignore */ }
                       }}
                       greigeBg={C.kitResumeTextareaBg}
+                      onDownloadPdf={
+                        tailoredResumePayload.ok
+                          ? () =>
+                              generateTailoredResumeJsonPDF(
+                                tailoredResumePayload.data,
+                                `${r?.jobTitle || 'Role'}_${r?.company || 'Company'}`,
+                              )
+                          : undefined
+                      }
+                      downloadDisabled={!tailored.trim() || !tailoredResumePayload.ok}
                     />
                     {!sourceResume && (
                       <p style={{ fontSize: 12, color: C.muted, marginTop: 10, marginBottom: 0 }}>Add your resume under VoicePrint to enable tailoring.</p>
