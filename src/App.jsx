@@ -144,13 +144,15 @@ function Dots() {
 
 /** jsPDF: match C.kitResumeBg #fafafa — full-bleed fill every page (avoids white seams). */
 const PDF_RESUME_BG = [250, 250, 250]
-/** Foreground text for tailored resume PDF — #1c1c1a only (name, headline, body, bullets, section titles, job titles, contact). */
+/** Tailored resume PDF foreground: #1c1c1a everywhere (no brown/sepia). Links use PDF_LINK_CYAN. */
 const PDF_INK = [28, 28, 26]
 const PDF_NAME = PDF_INK
 const PDF_HEADLINE = PDF_INK
 const PDF_BODY = PDF_INK
 const PDF_SECTION_TITLE = PDF_INK
-/** Section underline — C.borderStrong-ish, not near-black (avoids a “bar” at page breaks). */
+/** C.cyan — link/URL text only (matches on-screen resume). */
+const PDF_LINK_CYAN = [78, 205, 196]
+/** Section underline — light neutral rule, not body text. */
 const PDF_SECTION_RULE = [217, 217, 215]
 
 function pdfResumePageBackground(doc) {
@@ -169,7 +171,7 @@ function pdfNormalizeResumeUrl(s) {
   return `https://${t}`
 }
 
-/** Contact row: location • phone • email • LinkedIn • portfolio (links still clickable; ink #1c1c1a). */
+/** Contact row (plain resume editor PDF): ink #1c1c1a; links #4ecdc4. */
 function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   const parts = []
   if (String(data.location || '').trim()) parts.push({ text: String(data.location).trim() })
@@ -215,7 +217,7 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(...PDF_INK)
+      doc.setTextColor(...PDF_LINK_CYAN)
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
@@ -227,7 +229,7 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   return y + 6
 }
 
-/** Contact row from tailored JSON — same #1c1c1a ink as the rest of the resume PDF. */
+/** Contact row from tailored JSON — body #1c1c1a; links #4ecdc4. */
 function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, { scale = 1 } = {}) {
   const c = normalizeTailoredResumeJson({ contact }).contact
   const parts = []
@@ -271,7 +273,7 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, 
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(...PDF_INK)
+      doc.setTextColor(...PDF_LINK_CYAN)
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
@@ -318,6 +320,8 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   /** Match Experience: 15 after title row, 13 per wrapped body line (bullets, company, descriptions). */
   const expGapAfterTitle = 15
   const expBodyLine = 13
+  /** Space before 2nd+ project / credential block (like separation between job entries). */
+  const blockGapBefore = 12
   const sectionGapBefore = 16
   const sectionGapTitleToRule = 7
   const sectionGapAfterRule = 12
@@ -409,6 +413,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
       /* Same vertical rhythm as Experience: heading line(s) at expBodyLine, then expGapAfterTitle before body, body at expBodyLine. */
       for (let bi = 0; bi < blocks.length; bi++) {
         const b = blocks[bi]
+        if (bi > 0) y += gap(blockGapBefore)
         checkPage(28)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setTextColor(...PDF_BODY)
@@ -460,7 +465,8 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
     if (sid === 'education') {
       const eduLs = expandEducationRawLines(ls)
       const blocks = splitEducationLines(eduLs)
-      for (const b of blocks) {
+      blocks.forEach((b, ei) => {
+        if (ei > 0) y += gap(blockGapBefore)
         checkPage(22)
         doc.setFontSize(fs(PDF_BODY_PT))
         doc.setTextColor(...PDF_BODY)
@@ -488,7 +494,7 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
             y += gap(expBodyLine)
           })
         }
-      }
+      })
       continue
     }
 
@@ -2173,7 +2179,7 @@ function MyResumePlusSection({
     if (typeof onOpenMyResumeTab === 'function') onOpenMyResumeTab()
   }
 
-  if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
+  if (!allowApplyOutputs) return null
 
   const subBtn = {
     width: '100%',
@@ -3231,7 +3237,7 @@ function ResultCard({ result:r, onApplyAnyway, apiKey, keySaved, voiceProfile, m
                 )}
               </div>
             )}
-            {allowApplyOutputs && (showCoverLetter || showOutreach) && (
+            {allowApplyOutputs && (
               <MyResumePlusSection
                 r={r}
                 voiceProfile={voiceProfile}
@@ -3275,7 +3281,7 @@ function ResultCard({ result:r, onApplyAnyway, apiKey, keySaved, voiceProfile, m
             </div>
           </div>
         )}
-        {!hasUpskillShell && allowApplyOutputs && (showCoverLetter || showOutreach) && (
+        {!hasUpskillShell && allowApplyOutputs && (
           <div style={{ marginTop: 8, borderTop: `1px solid ${C.border}` }}>
             <MyResumePlusSection
               r={r}
