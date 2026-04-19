@@ -2350,7 +2350,9 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         </div>
       )}
       <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
-      <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Paste a job description. Get your match score, cover letter, and outreach message.</p>
+      <p style={{ fontSize:10, fontStyle:'italic', color:C.muted, marginBottom:24, lineHeight:1.6, marginTop:0 }}>
+        Paste a job description to get your match score, tailored resume, cover letter, connection message, and upskilling ideas to close any skill gaps
+      </p>
       <div style={{ marginBottom:14 }}>
         <Label>Mode</Label>
         <div style={{ display:'flex', gap:8, flexWrap:'wrap' }}>
@@ -2404,41 +2406,31 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
             {loadMsg}
           </div>
         )}
-        <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Begin Analysis</span>
-          <button
-            type="button"
-            onClick={() => analyze(false)}
-            disabled={loading}
-            style={{
-              border: 'none',
-              cursor: loading ? 'not-allowed' : 'pointer',
-              background: 'transparent',
-              padding: 0,
-              margin: 0,
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              lineHeight: 1,
-              opacity: loading ? 0.45 : 1,
-              fontFamily: "'DM Sans', sans-serif",
-            }}
-            aria-label={loading ? 'Running job analysis' : 'Begin analysis'}
-            title={loading ? 'Analyzing…' : 'Begin analysis'}
-          >
-            <span
-              style={{
-                fontSize: 9,
-                color: C.cyan,
-                display: 'inline-block',
-                lineHeight: 1,
-              }}
-              aria-hidden="true"
-            >
-              ▶
-            </span>
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => analyze(false)}
+          disabled={loading}
+          style={{
+            border: 'none',
+            cursor: loading ? 'not-allowed' : 'pointer',
+            background: 'transparent',
+            padding: '4px 0',
+            margin: 0,
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            lineHeight: 1,
+            opacity: loading ? 0.45 : 1,
+            fontFamily: "'DM Sans', sans-serif",
+          }}
+          aria-label={loading ? 'Running job analysis' : 'Begin analysis'}
+          title={loading ? 'Analyzing…' : 'Begin analysis'}
+        >
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, lineHeight: 1 }}>Begin Analysis</span>
+          <span style={{ fontSize: 9, color: C.cyan, display: 'inline-block', lineHeight: 1 }} aria-hidden="true">
+            ▶
+          </span>
+        </button>
       </div>
       {error && <div style={{ marginTop:20, padding:'14px 18px', borderRadius:12, background:C.redBg, border:`1px solid rgba(155,35,53,0.15)`, fontSize:13, color:C.red }}><strong>Something went wrong:</strong> {error}</div>}
       {currentResult && (
