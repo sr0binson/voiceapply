@@ -362,6 +362,79 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
     doc.line(margin, y, pageW - margin, y)
     y += 10
 
+    if (sid === 'projects') {
+      const blocks = splitProjectLines(ls)
+      for (const b of blocks) {
+        checkPage(24)
+        doc.setFontSize(10.5)
+        doc.setTextColor(28, 28, 26)
+        doc.setFont('helvetica', 'bold')
+        const tw = doc.getTextWidth(b.title)
+        const toolsStr = b.tools ? ` - ${b.tools}` : ''
+        doc.setFont('helvetica', 'normal')
+        const toolsW = b.tools ? doc.getTextWidth(toolsStr) : 0
+        if (b.tools && tw + toolsW <= contentW) {
+          doc.setFont('helvetica', 'bold')
+          doc.text(b.title, margin, y)
+          doc.setFont('helvetica', 'normal')
+          doc.text(toolsStr, margin + tw, y)
+          y += 14
+        } else {
+          doc.setFont('helvetica', 'bold')
+          doc.splitTextToSize(b.title, contentW).forEach(line => {
+            checkPage(16)
+            doc.text(line, margin, y)
+            y += 13
+          })
+          if (b.tools) {
+            doc.setFont('helvetica', 'normal')
+            doc.splitTextToSize(toolsStr.trim(), contentW).forEach(line => {
+              checkPage(16)
+              doc.text(line, margin, y)
+              y += 13
+            })
+          }
+        }
+        for (const dline of b.desc) {
+          doc.setFont('helvetica', 'normal')
+          doc.setFontSize(10.5)
+          doc.setTextColor(28, 28, 26)
+          doc.splitTextToSize(dline, contentW).forEach(line => {
+            checkPage(16)
+            doc.text(line, margin, y)
+            y += 13
+          })
+        }
+        y += 4
+      }
+      continue
+    }
+
+    if (sid === 'education') {
+      const blocks = splitEducationLines(ls)
+      for (const b of blocks) {
+        checkPage(22)
+        doc.setFontSize(10.5)
+        doc.setTextColor(28, 28, 26)
+        doc.setFont('helvetica', 'bold')
+        doc.splitTextToSize(b.title, contentW).forEach(line => {
+          checkPage(16)
+          doc.text(line, margin, y)
+          y += 13
+        })
+        doc.setFont('helvetica', 'normal')
+        for (const dline of b.desc) {
+          doc.splitTextToSize(dline, contentW).forEach(line => {
+            checkPage(16)
+            doc.text(line, margin, y)
+            y += 13
+          })
+        }
+        y += 4
+      }
+      continue
+    }
+
     let bulletBuf = []
     let i = 0
     while (i < ls.length) {
@@ -528,6 +601,104 @@ function resumeSectionId(headerLine) {
   if (/\bPROJECTS?\b/.test(u)) return 'projects'
   if (/\bEDUCATION\b/.test(u) || /\bCERTIFICATIONS?\b/.test(u) || /\bACADEMIC\b/.test(u)) return 'education'
   return 'other'
+}
+
+/** Tools string: split on • , ; and rejoin with spaced bullets. */
+function normalizeToolsString(s) {
+  return String(s || '')
+    .split(/[•,;]+/)
+    .map(x => x.trim())
+    .filter(Boolean)
+    .join(' • ')
+}
+
+/** First line of a project: "Title - tool1 • tool2" or "Title    tools". */
+function parseProjectTitleTools(line) {
+  const t = String(line || '').trim()
+  if (!t) return { title: '', tools: '' }
+  const dash = t.split(/\s+-\s+/)
+  if (dash.length >= 2) {
+    const title = dash[0].trim()
+    const tools = normalizeToolsString(dash.slice(1).join(' - '))
+    return { title, tools }
+  }
+  const gap = t.split(/\s{2,}/)
+  if (gap.length >= 2) {
+    return { title: gap[0].trim(), tools: normalizeToolsString(gap.slice(1).join(' ')) }
+  }
+  return { title: t, tools: '' }
+}
+
+function isProjectHeaderLine(line) {
+  const t = String(line || '').trim()
+  if (!t) return false
+  if (/\s+-\s+/.test(t)) {
+    const parts = t.split(/\s+-\s+/)
+    if (parts.length >= 2 && parts[0].length < 90 && parts[1].trim().length > 0) return true
+  }
+  if (/\s{2,}/.test(t)) {
+    const parts = t.split(/\s{2,}/)
+    if (parts.length >= 2 && parts[0].length < 80) return true
+  }
+  return false
+}
+
+function splitProjectLines(ls) {
+  const out = []
+  let i = 0
+  while (i < ls.length) {
+    if (lineLooksLikeResumeBulletLine(ls[i])) {
+      i++
+      continue
+    }
+    const parsed = parseProjectTitleTools(ls[i])
+    i++
+    const desc = []
+    while (i < ls.length) {
+      if (lineLooksLikeResumeBulletLine(ls[i])) {
+        desc.push(`• ${stripResumeBulletPrefix(ls[i])}`)
+        i++
+        continue
+      }
+      if (isProjectHeaderLine(ls[i])) break
+      desc.push(ls[i])
+      i++
+    }
+    out.push({ title: parsed.title, tools: parsed.tools, desc })
+  }
+  return out
+}
+
+function isLikelyEducationTitleLine(line, prevLine) {
+  const t = String(line || '').trim()
+  if (!t || t.length > 140) return false
+  if (/^[a-z]/.test(t)) return false
+  if (/\b(CompTIA|AWS|Google|Certificate|Degree|B\.S\.|B\.A\.|M\.S\.|M\.A\.|MBA|Ph\.D|Bachelor|Master|University|College|Bootcamp|Coursera|edX)\b/i.test(t)) return true
+  if (/\(in progress\)/i.test(t)) return true
+  if (prevLine && prevLine.length > 100 && t.length < 100 && /^[A-Z(]/.test(t)) return true
+  return false
+}
+
+function splitEducationLines(ls) {
+  const out = []
+  let i = 0
+  while (i < ls.length) {
+    if (lineLooksLikeResumeBulletLine(ls[i])) {
+      i++
+      continue
+    }
+    const title = ls[i++]
+    const desc = []
+    while (i < ls.length && !lineLooksLikeResumeBulletLine(ls[i])) {
+      const line = ls[i]
+      const prev = desc.length ? desc[desc.length - 1] : title
+      if (isLikelyEducationTitleLine(line, prev)) break
+      desc.push(line)
+      i++
+    }
+    out.push({ title, desc })
+  }
+  return out
 }
 
 function looksLikeDateFragment(s) {
@@ -742,8 +913,78 @@ function TailoredResumeJsonContactRow({ contact }) {
   )
 }
 
+function TailoredResumeJsonProjectLines({ lines }) {
+  const ls = lines.map(l => String(l).trim()).filter(Boolean)
+  if (!ls.length) return null
+  const blocks = splitProjectLines(ls)
+  return (
+    <>
+      {blocks.map((b, idx) => (
+        <div key={idx} style={{ marginBottom: 16 }}>
+          <div style={{ fontSize: 11, lineHeight: 1.5, color: C.resumeBody }}>
+            <span style={{ fontWeight: 700 }}>{b.title}</span>
+            {b.tools ? (
+              <>
+                <span style={{ fontWeight: 400 }}>{' - '}</span>
+                <span style={{ fontWeight: 400 }}>{b.tools}</span>
+              </>
+            ) : null}
+          </div>
+          {b.desc.map((d, j) => (
+            <p
+              key={j}
+              style={{
+                margin: '6px 0 0',
+                fontSize: 11,
+                fontWeight: 400,
+                lineHeight: 1.55,
+                color: C.resumeBody,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {d}
+            </p>
+          ))}
+        </div>
+      ))}
+    </>
+  )
+}
+
+function TailoredResumeJsonEducationLines({ lines }) {
+  const ls = lines.map(l => String(l).trim()).filter(Boolean)
+  if (!ls.length) return null
+  const blocks = splitEducationLines(ls)
+  return (
+    <>
+      {blocks.map((b, idx) => (
+        <div key={idx} style={{ marginBottom: 14 }}>
+          <div style={{ fontSize: 11, fontWeight: 700, lineHeight: 1.5, color: C.resumeBody }}>{b.title}</div>
+          {b.desc.map((d, j) => (
+            <p
+              key={j}
+              style={{
+                margin: '5px 0 0',
+                fontSize: 11,
+                fontWeight: 400,
+                lineHeight: 1.55,
+                color: C.resumeBody,
+                whiteSpace: 'pre-wrap',
+              }}
+            >
+              {d}
+            </p>
+          ))}
+        </div>
+      ))}
+    </>
+  )
+}
+
 /** Render one section's lines (bullets + paragraphs); experience uses TailoredExperienceParagraph. */
 function TailoredResumeJsonSectionLines({ lines, sectionId }) {
+  if (sectionId === 'projects') return <TailoredResumeJsonProjectLines lines={lines} />
+  if (sectionId === 'education') return <TailoredResumeJsonEducationLines lines={lines} />
   const ls = lines.map(l => String(l).trim()).filter(Boolean)
   if (!ls.length) return null
   const nodes = []
@@ -1602,13 +1843,15 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         '    { "title": "SUMMARY", "lines": ["paragraph text"] },\n' +
         '    { "title": "SKILLS", "lines": ["- Skill one", "- Skill two"] },\n' +
         '    { "title": "EXPERIENCE", "lines": ["Job Title    Start – End", "Company", "- bullet", "- bullet"] },\n' +
-        '    { "title": "PROJECTS", "lines": ["Project name    tech/stack", "Short description", "- optional bullet"] },\n' +
-        '    { "title": "EDUCATION", "lines": ["Degree    Year", "School"] }\n' +
+        '    { "title": "PROJECTS", "lines": ["ProjectTitle - Tool A • Tool B • Tool C", "One brief description paragraph per project.", "OtherProject - React • Node"] },\n' +
+        '    { "title": "EDUCATION", "lines": ["CompTIA A+ (in progress)", "Expected completion and details.", "University Name — Degree"] }\n' +
         '  ]\n' +
         '}\n' +
         'Rules: contact.websites must be an array of EXACTLY two strings (use empty string "" if a slot is unused). ' +
         'Facts only from the source resume. Reorder/emphasize sections as needed for the job. ' +
-        'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n'
+        'Include every substantive section that appears in the source resume (e.g. PROJECTS, EDUCATION, CERTIFICATIONS); do not drop whole sections that contain real content from the source.\n' +
+        'PROJECTS lines: for each project, first line MUST be "ProjectName - tool1 • tool2 • tool3" (space-dash-space after name; tools separated by •). Following lines are a short description only.\n' +
+        'EDUCATION lines: each credential as a bold-worthy title line (e.g. certification or degree name), with details on the following lines before the next credential.\n'
 
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
@@ -2350,7 +2593,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
         </div>
       )}
       <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
-      <p style={{ fontSize:10, fontStyle:'italic', color:C.muted, marginBottom:24, lineHeight:1.6, marginTop:0 }}>
+      <p style={{ fontSize:11, fontStyle:'italic', color:C.muted, marginBottom:24, lineHeight:1.6, marginTop:0 }}>
         Paste a job description to get your match score, tailored resume, cover letter, connection message, and upskilling ideas to close any skill gaps
       </p>
       <div style={{ marginBottom:14 }}>
