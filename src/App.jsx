@@ -419,6 +419,296 @@ function orderContactLineForDisplay(raw) {
   return [...loc, ...phone, ...email, ...li, ...port].join('  •  ')
 }
 
+const TAILORED_RESUME_JSON_VERSION = 1
+
+/** Strip ```json fences from model output. */
+function stripAssistantJsonFence(s) {
+  let t = String(s || '').trim()
+  if (t.startsWith('```')) {
+    t = t.replace(/^```(?:json)?\s*/i, '')
+    const idx = t.lastIndexOf('```')
+    if (idx !== -1) t = t.slice(0, idx)
+  }
+  return t.trim()
+}
+
+function normalizeTailoredResumeJson(raw) {
+  const c = raw && typeof raw.contact === 'object' ? raw.contact : {}
+  let websites = Array.isArray(c.websites) ? c.websites.map(w => String(w || '').trim()) : []
+  while (websites.length < 2) websites.push('')
+  websites = websites.slice(0, 2)
+  const sections = Array.isArray(raw.sections)
+    ? raw.sections.map(s => ({
+        title: String(s.title || '').trim(),
+        lines: Array.isArray(s.lines) ? s.lines.map(l => String(l)) : [],
+      }))
+    : []
+  return {
+    version: TAILORED_RESUME_JSON_VERSION,
+    name: String(raw.name || '').trim(),
+    headline: String(raw.headline || '').trim(),
+    contact: {
+      location: String(c.location || '').trim(),
+      phone: String(c.phone || '').trim(),
+      email: String(c.email || '').trim(),
+      websites,
+    },
+    sections,
+  }
+}
+
+/** @returns {{ ok: true, data: object } | { ok: false }} */
+function parseTailoredResumeJson(text) {
+  const t = stripAssistantJsonFence(text)
+  if (!t.startsWith('{')) return { ok: false }
+  try {
+    const raw = JSON.parse(t)
+    if (!raw || typeof raw !== 'object') return { ok: false }
+    const data = normalizeTailoredResumeJson(raw)
+    return { ok: true, data }
+  } catch {
+    return { ok: false }
+  }
+}
+
+function tailoredResumeJsonToPlainText(data) {
+  const d = normalizeTailoredResumeJson(data)
+  const { contact: c } = d
+  const web = (c.websites || []).filter(Boolean).join(' • ')
+  const contactLine = [c.location, c.phone, c.email, web].filter(Boolean).join(' • ')
+  const lines = [d.name, d.headline, contactLine, '', ...d.sections.flatMap(sec => [sec.title.toUpperCase(), ...sec.lines, ''])]
+  return lines.join('\n').trim()
+}
+
+function tailoredResumeHrefForWebsite(w) {
+  const s = String(w || '').trim()
+  if (!s) return '#'
+  if (/^https?:\/\//i.test(s)) return s
+  if (/^www\./i.test(s)) return `https://${s}`
+  return `https://${s}`
+}
+
+/** Contact row: location • phone • email (mailto) • up to 2 URLs — single line, 10px, scroll if needed; links cyan. */
+function TailoredResumeJsonContactRow({ contact }) {
+  const c = normalizeTailoredResumeJson({ contact }).contact
+  const chunks = []
+  let k = 0
+  const sep = <span key={`sep-${k++}`} style={{ color: C.resumeHeadline, userSelect: 'none' }}> · </span>
+  const pushSep = () => {
+    if (chunks.length) chunks.push(sep)
+  }
+  if (c.location) {
+    chunks.push(<span key={`loc-${k++}`}>{c.location}</span>)
+  }
+  if (c.phone) {
+    pushSep()
+    chunks.push(<span key={`ph-${k++}`}>{c.phone}</span>)
+  }
+  if (c.email) {
+    pushSep()
+    chunks.push(
+      <a key={`em-${k++}`} href={`mailto:${c.email}`} style={linkStyleContact}>
+        {c.email}
+      </a>,
+    )
+  }
+  for (const w of c.websites || []) {
+    if (!String(w).trim()) continue
+    pushSep()
+    const href = tailoredResumeHrefForWebsite(w)
+    chunks.push(
+      <a key={`w-${k++}`} href={href} target="_blank" rel="noopener noreferrer" style={linkStyleContact}>
+        {w}
+      </a>,
+    )
+  }
+  return (
+    <div
+      style={{
+        fontSize: 10,
+        lineHeight: 1.45,
+        fontWeight: 400,
+        color: C.resumeBody,
+        whiteSpace: 'nowrap',
+        overflowX: 'auto',
+        overflowY: 'hidden',
+        maxWidth: '100%',
+        WebkitOverflowScrolling: 'touch',
+        marginTop: 2,
+      }}
+    >
+      {chunks}
+    </div>
+  )
+}
+
+/** Render one section's lines (bullets + paragraphs); experience uses TailoredExperienceParagraph. */
+function TailoredResumeJsonSectionLines({ lines, sectionId }) {
+  const ls = lines.map(l => String(l).trim()).filter(Boolean)
+  if (!ls.length) return null
+  const nodes = []
+  let bulletBuf = []
+  let key = 0
+  const flushBullets = () => {
+    if (!bulletBuf.length) return
+    if (sectionId === 'skills') {
+      nodes.push(
+        <div
+          key={`sk-${key++}`}
+          style={{
+            margin: '0 0 12px 0',
+            fontSize: 11,
+            lineHeight: 1.65,
+            color: C.resumeBody,
+          }}
+        >
+          {bulletBuf.map((item, i) => (
+            <span key={i}>
+              {item}
+              {i < bulletBuf.length - 1 && (
+                <span style={{ color: C.resumeHeadline, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                  {' '}
+                  •{' '}
+                </span>
+              )}
+            </span>
+          ))}
+        </div>,
+      )
+    } else {
+      nodes.push(
+        <ul
+          key={`ul-${key++}`}
+          style={{
+            margin: '0 0 12px 0',
+            padding: '0 0 0 1.1em',
+            listStyleType: 'disc',
+            listStylePosition: 'outside',
+            fontSize: 11,
+            lineHeight: 1.48,
+            color: C.resumeBody,
+          }}
+        >
+          {bulletBuf.map((item, i) => (
+            <li key={i} style={{ marginBottom: 6, paddingLeft: 2 }}>
+              {item}
+            </li>
+          ))}
+        </ul>,
+      )
+    }
+    bulletBuf = []
+  }
+  let i = 0
+  while (i < ls.length) {
+    if (lineLooksLikeResumeBulletLine(ls[i])) {
+      bulletBuf.push(stripResumeBulletPrefix(ls[i]))
+      i++
+      continue
+    }
+    flushBullets()
+    const para = []
+    while (i < ls.length && !lineLooksLikeResumeBulletLine(ls[i])) {
+      para.push(ls[i])
+      i++
+    }
+    if (para.length) {
+      if (sectionId === 'experience') {
+        nodes.push(<TailoredExperienceParagraph key={`exp-${key++}`} paraLines={para} />)
+      } else {
+        nodes.push(
+          <p
+            key={`p-${key++}`}
+            style={{
+              margin: '0 auto 10px',
+              maxWidth: '100%',
+              fontSize: 11.5,
+              lineHeight: 1.48,
+              color: C.resumeBody,
+              whiteSpace: 'pre-line',
+            }}
+          >
+            {para.join('\n')}
+          </p>,
+        )
+      }
+    }
+  }
+  flushBullets()
+  return <>{nodes}</>
+}
+
+function TailoredResumeJsonView({ data, paperBg = C.kitResumeBg }) {
+  const d = normalizeTailoredResumeJson(data)
+  const articleStyle = {
+    padding: '28px 32px 24px',
+    background: paperBg,
+    border: `1px solid ${C.border}`,
+    borderRadius: 10,
+    boxSizing: 'border-box',
+    width: '100%',
+    maxWidth: 'min(100%, 680px)',
+    margin: '0 auto',
+    overflowX: 'auto',
+    fontFamily: "'DM Sans', sans-serif",
+    textAlign: 'left',
+    color: C.resumeBody,
+  }
+  const nameStyle = {
+    fontSize: 20,
+    fontWeight: 700,
+    lineHeight: 1.2,
+    color: C.resumeName,
+    letterSpacing: '-0.02em',
+    margin: '0 0 6px',
+    padding: 0,
+  }
+  const headlineStyle = {
+    fontSize: 12,
+    fontWeight: 700,
+    lineHeight: 1.35,
+    color: C.resumeHeadline,
+    margin: '0 0 8px',
+    padding: 0,
+    maxWidth: '100%',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap',
+  }
+  return (
+    <article style={articleStyle}>
+      {d.name ? <h2 style={nameStyle}>{d.name}</h2> : null}
+      {d.headline ? <div style={headlineStyle}>{normalizeHeadlineDisplay(d.headline)}</div> : null}
+      <TailoredResumeJsonContactRow contact={d.contact} />
+      {d.sections.map((sec, idx) => {
+        const sid = resumeSectionId(sec.title)
+        const titleU = sec.title || `SECTION ${idx + 1}`
+        return (
+          <div key={`sec-${idx}`} style={{ marginTop: idx === 0 ? 14 : 12 }}>
+            <div
+              style={{
+                fontSize: 12,
+                fontWeight: 700,
+                letterSpacing: '0.06em',
+                textTransform: 'uppercase',
+                color: C.resumeSectionTitle,
+                marginBottom: 8,
+                padding: 0,
+                paddingBottom: 0,
+                lineHeight: 1.15,
+                borderBottom: `1px solid ${C.borderStrong}`,
+              }}
+            >
+              {titleU}
+            </div>
+            <TailoredResumeJsonSectionLines lines={sec.lines} sectionId={sid} />
+          </div>
+        )
+      })}
+    </article>
+  )
+}
+
 /** Multiple title phrases → single line with pipes. */
 function normalizeHeadlineDisplay(headline) {
   let h = String(headline || '').trim()
@@ -1096,6 +1386,12 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     ? '\n\nVOICEPRINT (tone and wording only — do not add facts from here):\n' + String(voiceProfile.analysis).slice(0, 1000)
     : ''
 
+  const tailoredResumePayload = useMemo(() => parseTailoredResumeJson(tailored), [tailored])
+  const resumeCopyPlain = useMemo(() => {
+    if (tailoredResumePayload.ok) return tailoredResumeJsonToPlainText(tailoredResumePayload.data)
+    return tailored
+  }, [tailored, tailoredResumePayload])
+
   const generateTailoredResume = useCallback(async (isRegenerate = false) => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
@@ -1122,6 +1418,27 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         isRegenerate
           ? '\n\nREGENERATION: meaningfully different layout or bullet emphasis; SAME facts as source resume only. No new employers, dates, tools, or metrics.\n'
           : ''
+      const jsonShape =
+        'OUTPUT FORMAT: Return ONE JSON object only (no markdown fences, no commentary before or after). Schema:\n' +
+        '{\n' +
+        '  "version": 1,\n' +
+        '  "name": "Full name",\n' +
+        '  "headline": "Professional title | pipe-separated phrases — MUST be short enough for ONE line (~85 characters max; no line breaks)",\n' +
+        '  "contact": {\n' +
+        '    "location": "City, ST or region",\n' +
+        '    "phone": "One phone number as plain text",\n' +
+        '    "email": "address@domain.com",\n' +
+        '    "websites": ["https://first-site-or-linkedin", "https://second-site-or-portfolio"]\n' +
+        '  },\n' +
+        '  "sections": [\n' +
+        '    { "title": "SUMMARY", "lines": ["paragraph text"] },\n' +
+        '    { "title": "SKILLS", "lines": ["- Skill one", "- Skill two"] },\n' +
+        '    { "title": "EXPERIENCE", "lines": ["Job Title    Start – End", "Company", "- bullet", "- bullet"] }\n' +
+        '  ]\n' +
+        '}\n' +
+        'Rules: contact.websites must be an array of EXACTLY two strings (use empty string "" if a slot is unused). ' +
+        'Facts only from the source resume. Reorder/emphasize sections as needed for the job.\n'
+
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
         (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 6000) + '\n\n' : '') +
@@ -1131,20 +1448,14 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
         'SOURCE RESUME — sole source of truth for facts (employers, dates, titles, education, tools, metrics). Do not add, remove, or alter facts:\n' +
         sourceResume.slice(0, 9000) +
         voiceSec +
-        '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. You may reorder sections, emphasize relevant bullets, and use honest transferable phrasing suggested by the gap notes and job description — without inventing experience.\n' +
-        'FORMAT (plain text, no markdown), all left-aligned in spirit:\n' +
-        '- Header: Output the header block using exactly these labeled lines, in this order:\n' +
-        '  NAME: [candidate full name]\n' +
-        '  HEADLINE: [professional headline with | between phrases]\n' +
-        '  CONTACT: [location • phone • email • linkedin url • portfolio url]\n' +
-        '- Do not add blank lines between these three lines. Do not add any other lines to the header block.\n' +
-        'Return ONLY the resume text.'
+        '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. Honest transferable phrasing from gap notes and job description — never invent experience.\n' +
+        jsonShape
 
       const res = await kitFetchMessages(
         apiKey,
-        'You edit resumes for specific job postings. Facts may come ONLY from the candidate source resume text supplied by the user. The job description and skill-gap notes guide emphasis and honest transferable framing; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
+        'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Facts may come ONLY from the candidate source resume. The job description and skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
         userContent,
-        2800,
+        4096,
       )
       if (!res.ok) {
         const e = await res.json().catch(() => ({}))
@@ -1152,10 +1463,19 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       }
       const data = await res.json()
       const text = anthropicMessageText(data).trim()
-      setTailored(text)
-      try {
-        sessionStorage.setItem(storageKey, text)
-      } catch { /* ignore */ }
+      const parsed = parseTailoredResumeJson(text)
+      if (parsed.ok) {
+        const pretty = JSON.stringify(parsed.data, null, 2)
+        setTailored(pretty)
+        try {
+          sessionStorage.setItem(storageKey, pretty)
+        } catch { /* ignore */ }
+      } else {
+        setTailored(text)
+        try {
+          sessionStorage.setItem(storageKey, text)
+        } catch { /* ignore */ }
+      }
     } catch (e) {
       setErr(e.message || 'Something went wrong.')
     } finally {
@@ -1407,12 +1727,17 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                 {!loading && (
                   <>
                     {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
-                    {!resumeEdit && <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />}
+                    {!resumeEdit &&
+                      (tailoredResumePayload.ok ? (
+                        <TailoredResumeJsonView data={tailoredResumePayload.data} paperBg={C.kitResumeBg} />
+                      ) : (
+                        <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />
+                      ))}
                     <KitActionRow
                       onRegenerate={handleResumeRegen}
                       regenDisabled={loading || !canGenerate}
                       regenLabel={tailored.trim() ? 'Regenerate' : 'Generate'}
-                      copyText={tailored}
+                      copyText={resumeCopyPlain}
                       onEditInContent={() => setResumeEdit(e => !e)}
                       editOpen={resumeEdit}
                       editValue={tailored}
