@@ -397,8 +397,14 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
 
     if (sid === 'projects') {
       const blocks = splitProjectLines(ls)
-      for (const b of blocks) {
-        checkPage(24)
+      /* PDF-only vertical rhythm (independent of screen CSS): readable title/line steps, normal body leading, gap between projects. */
+      const projTitleLine = 15
+      const projDescLine = 16
+      const projGapTitleToBody = 6
+      const projBetweenBlocks = 10
+      for (let bi = 0; bi < blocks.length; bi++) {
+        const b = blocks[bi]
+        checkPage(28)
         doc.setFontSize(fs(11))
         doc.setTextColor(...PDF_BODY)
         doc.setFont('helvetica', 'bold')
@@ -411,23 +417,24 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           doc.text(b.title, margin, y)
           doc.setFont('helvetica', 'normal')
           doc.text(toolsStr, margin + tw, y)
-          y += gap(9)
+          y += gap(projTitleLine)
         } else {
           doc.setFont('helvetica', 'bold')
           doc.splitTextToSize(b.title, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += gap(13)
+            y += gap(projTitleLine)
           })
           if (b.tools) {
             doc.setFont('helvetica', 'normal')
             doc.splitTextToSize(toolsStr.trim(), contentW).forEach(line => {
               checkPage(16)
               doc.text(line, margin, y)
-              y += gap(13)
+              y += gap(projTitleLine)
             })
           }
         }
+        if (b.desc.length) y += gap(projGapTitleToBody)
         for (const dline of b.desc) {
           doc.setFont('helvetica', 'normal')
           doc.setFontSize(fs(11))
@@ -435,9 +442,10 @@ function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
           doc.splitTextToSize(dline, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += gap(12)
+            y += gap(projDescLine)
           })
         }
+        if (bi < blocks.length - 1) y += gap(projBetweenBlocks)
       }
       continue
     }
