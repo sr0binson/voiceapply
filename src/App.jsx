@@ -1,7 +1,12 @@
 import { useState, useRef, useMemo, useEffect, useCallback } from 'react'
 import { jsPDF } from 'jspdf'
 
-const NAV = ['Analyze', 'Documents', 'VoicePrint', 'History']
+const NAV = [
+  { id: 'Analyze', label: 'Analyze' },
+  { id: 'Documents', label: 'myResume+' },
+  { id: 'VoicePrint', label: 'VoicePrint' },
+  { id: 'History', label: 'History' },
+]
 
 function loadStorage(key, fallback) {
   try { return JSON.parse(localStorage.getItem(key) || 'null') ?? fallback } catch { return fallback }
@@ -22,19 +27,13 @@ const C = {
   projectPanelBg: 'rgba(45,106,79,0.11)',
   projectPanelBorder: 'rgba(34,88,62,0.26)',
   projectPanelTitle: '#1e4a33',
-  letterPanelBg: 'rgba(58,72,88,0.06)',
-  letterPanelBorder: 'rgba(58,72,88,0.18)',
-  letterPanelTitle: '#4a5565',
-  connectPanelBg: 'rgba(122,95,60,0.09)',
-  connectPanelBorder: 'rgba(122,95,60,0.24)',
-  connectPanelTitle: '#5c4a26',
   kitResumeBg: '#fafafa',
   /** Edit textarea in myResume+ tailored resume — same family as kitResumeBg, one step lighter */
   kitResumeTextareaBg: '#fcfcfc',
-  kitCoverBg: '#f3f1ed',
   /** Tailored resume header: name row always larger than headline row (px-locked in UI) */
   resumeName: '#0a0a09',
-  resumeHeadline: '#6a6a64',
+  /** Standard dark grey — clearly not black; softer than resumeName */
+  resumeHeadline: '#333333',
   resumeSectionTitle: '#2c2c28',
   resumeBody: '#1c1c1a',
   resumeLinkCyan: '#157a73',
@@ -305,7 +304,7 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
     const hl = normalizeHeadlineDisplay(d.headline)
     doc.setFontSize(11)
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(80, 80, 76)
+    doc.setTextColor(51, 51, 51)
     const hlLines = doc.splitTextToSize(hl, contentW)
     checkPage(18)
     doc.text(hlLines[0] || '', margin, y)
@@ -694,7 +693,7 @@ function TailoredResumeJsonContactRow({ contact }) {
   const c = normalizeTailoredResumeJson({ contact }).contact
   const chunks = []
   let k = 0
-  const sep = <span key={`sep-${k++}`} style={{ color: C.resumeHeadline, userSelect: 'none' }}> · </span>
+  const sep = <span key={`sep-${k++}`} style={{ color: C.muted, userSelect: 'none' }}> · </span>
   const pushSep = () => {
     if (chunks.length) chunks.push(sep)
   }
@@ -767,7 +766,7 @@ function TailoredResumeJsonSectionLines({ lines, sectionId }) {
             <span key={i}>
               {item}
               {i < bulletBuf.length - 1 && (
-                <span style={{ color: C.resumeHeadline, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
                   {' '}
                   •{' '}
                 </span>
@@ -1264,7 +1263,7 @@ function TailoredResumeView({ text, paperBg = C.kitResumeBg }) {
             <span key={i}>
               {item.trim()}
               {i < bulletBuf.length - 1 && (
-                <span style={{ color: C.resumeHeadline, userSelect: 'none', fontSize: 10 }} aria-hidden>
+                <span style={{ color: C.muted, userSelect: 'none', fontSize: 10 }} aria-hidden>
                   {' '}
                   •{' '}
                 </span>
@@ -1470,20 +1469,17 @@ function kitFetchMessages(apiKey, system, userContent, maxTokens = 3000, model =
 
 function KitActionRow({
   onRegenerate,
+  hideRegenerate,
   regenDisabled,
   regenLabel,
   copyText,
-  onEditInContent,
-  editOpen,
-  editValue,
-  onEditChange,
-  greigeBg,
+  onMyResumePlusClick,
   onDownloadPdf,
   downloadDisabled,
 }) {
   return (
-    <>
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
+    <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'center', marginTop: 12 }}>
+      {!hideRegenerate && (
         <button
           type="button"
           disabled={regenDisabled}
@@ -1499,52 +1495,30 @@ function KitActionRow({
         >
           {regenLabel}
         </button>
-        <CopyBtn text={copyText} style={{ marginTop: 0, minHeight: 32 }} />
-        {typeof onDownloadPdf === 'function' && (
-          <Btn small primary disabled={downloadDisabled} onClick={onDownloadPdf}>
-            Download PDF →
-          </Btn>
-        )}
-        <button
-          type="button"
-          onClick={onEditInContent}
-          style={{
-            ...KIT_ACTION_BTN,
-            border: `1px solid ${C.borderStrong}`,
-            background: C.surface,
-            color: C.text,
-          }}
-        >
-          {editOpen ? 'Close editor' : 'Edit in Content'}
-        </button>
-      </div>
-      {editOpen && (
-        <textarea
-          value={editValue}
-          onChange={e => onEditChange(e.target.value)}
-          rows={12}
-          style={{
-            width: '100%',
-            marginTop: 12,
-            boxSizing: 'border-box',
-            border: `1px solid ${C.border}`,
-            borderRadius: 10,
-            padding: '12px 14px',
-            fontSize: 13,
-            fontFamily: "'DM Sans', sans-serif",
-            lineHeight: 1.65,
-            background: greigeBg,
-            color: C.text,
-            resize: 'vertical',
-            outline: 'none',
-          }}
-        />
       )}
-    </>
+      <CopyBtn text={copyText} style={{ marginTop: 0, minHeight: 32 }} />
+      {typeof onDownloadPdf === 'function' && (
+        <Btn small primary disabled={downloadDisabled} onClick={onDownloadPdf}>
+          Download PDF →
+        </Btn>
+      )}
+      <button
+        type="button"
+        onClick={onMyResumePlusClick}
+        style={{
+          ...KIT_ACTION_BTN,
+          border: `1px solid ${C.borderStrong}`,
+          background: C.surface,
+          color: C.text,
+        }}
+      >
+        myResume+
+      </button>
+    </div>
   )
 }
 
-function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach, embedded }) {
+function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach, embedded, onOpenMyResumeTab }) {
   const storageKey = KIT_TAILORED_RESUME_PREFIX + String(r?.id ?? `${r?.jobTitle || ''}_${r?.company || ''}`.replace(/\s/g, '_'))
   const [mainOpen, setMainOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
@@ -1554,14 +1528,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
   const [loading, setLoading] = useState(false)
   const [err, setErr] = useState('')
   const [coverText, setCoverText] = useState('')
-  const [coverLoading, setCoverLoading] = useState(false)
-  const [coverErr, setCoverErr] = useState('')
   const [connectText, setConnectText] = useState('')
-  const [connectLoading, setConnectLoading] = useState(false)
-  const [connectErr, setConnectErr] = useState('')
-  const [resumeEdit, setResumeEdit] = useState(false)
-  const [coverEdit, setCoverEdit] = useState(false)
-  const [connectEdit, setConnectEdit] = useState(false)
   const autoGenAttemptedRef = useRef(null)
 
   useEffect(() => {
@@ -1569,9 +1536,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setConnectOpen(false)
     setCoverOpen(false)
     setResumeOpen(false)
-    setResumeEdit(false)
-    setCoverEdit(false)
-    setConnectEdit(false)
     autoGenAttemptedRef.current = null
     try {
       setTailored(sessionStorage.getItem(storageKey) || '')
@@ -1600,7 +1564,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     return tailored
   }, [tailored, tailoredResumePayload])
 
-  const generateTailoredResume = useCallback(async (isRegenerate = false) => {
+  const generateTailoredResume = useCallback(async () => {
     if (!keySaved || !apiKey) {
       alert('Save your API key first.')
       return
@@ -1622,10 +1586,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
       const transferSec = transferNotes
         ? '\n\nTRANSFERABLE / GAP-BRIDGING NOTES FROM ANALYSIS (use for wording and emphasis only; every fact must still appear in the source resume):\n' + transferNotes.slice(0, 4000) + '\n'
         : ''
-      const varHint =
-        isRegenerate
-          ? '\n\nREGENERATION: meaningfully different layout or bullet emphasis; SAME facts as source resume only. No new employers, dates, tools, or metrics.\n'
-          : ''
       const jsonShape =
         'OUTPUT FORMAT: Return ONE JSON object only (no markdown fences, no commentary before or after). Schema:\n' +
         '{\n' +
@@ -1652,19 +1612,22 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
 
       const userContent =
         'Target role: ' + jobLine + '\n\n' +
-        (jdBlock ? 'JOB DESCRIPTION (prioritize alignment; do not invent qualifications):\n' + jdBlock.slice(0, 6000) + '\n\n' : '') +
+        (jdBlock
+          ? 'JOB DESCRIPTION — use for keyword alignment, section emphasis, and terminology: mirror phrasing the posting uses only where your resume honestly supports it. Do not invent qualifications.\n' +
+            jdBlock.slice(0, 6000) +
+            '\n\n'
+          : '') +
         gapsSec +
         transferSec +
-        varHint +
         'SOURCE RESUME — sole source of truth for facts (employers, dates, titles, education, tools, metrics). Do not add, remove, or alter facts:\n' +
         sourceResume.slice(0, 9000) +
         voiceSec +
-        '\n\nTASK: Produce a tailored resume for this job using ONLY information supported by the source resume. Honest transferable phrasing from gap notes and job description — never invent experience.\n' +
+        '\n\nTASK: Produce one best tailored resume in this single response. Combine (1) job-description keywords and priorities above for emphasis and honest wording, (2) facts only from the source resume, (3) VoicePrint notes above for tone and style only — not new facts. Use gap/transfer notes only to reframe existing experience. Never invent experience.\n' +
         jsonShape
 
       const res = await kitFetchMessages(
         apiKey,
-        'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Facts may come ONLY from the candidate source resume. The job description and skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. If VoicePrint style notes are provided, match tone only. Never hallucinate. Never use emojis.',
+        'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Produce one complete, polished version — your best layout and wording in this single response; do not assume a second pass. Integrate job-description alignment (keywords and role fit), resume truth (only source of facts), and VoicePrint (tone/style only when provided). Skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. Never hallucinate. Never use emojis.',
         userContent,
         4096,
       )
@@ -1694,88 +1657,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     }
   }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
 
-  const generateCoverVariant = useCallback(
-    async () => {
-      if (!keySaved || !apiKey) {
-        alert('Save your API key first.')
-        return
-      }
-      const base = String(coverText || r?.coverLetter || '').trim()
-      if (!base) return
-      setCoverLoading(true)
-      setCoverErr('')
-      try {
-        const varHint = 'REGENERATION: different opening and paragraph emphasis; same facts as resume and reference only.\n\n'
-        const userContent =
-          varHint +
-          'Target role: ' + jobLine + '\n\n' +
-          (jdBlock ? 'JOB DESCRIPTION:\n' + jdBlock.slice(0, 6000) + '\n\n' : '') +
-          'CANDIDATE RESUME (facts only):\n' + sourceResume.slice(0, 8000) + '\n' +
-          voiceSec +
-          '\n\nREFERENCE COVER LETTER (keep all facts consistent with resume; improve into a fresh version):\n' + base.slice(0, 12000) +
-          '\n\nReturn ONLY the full cover letter plain text. No markdown. No emojis. Do not invent experience.'
-
-        const res = await kitFetchMessages(
-          apiKey,
-          'You revise cover letters using only facts supported by the candidate resume. Never hallucinate credentials or experience.',
-          userContent,
-          2500,
-        )
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}))
-          throw new Error(e.error?.message || 'API error ' + res.status)
-        }
-        const data = await res.json()
-        setCoverText(anthropicMessageText(data).trim())
-      } catch (e) {
-        setCoverErr(e.message || 'Something went wrong.')
-      } finally {
-        setCoverLoading(false)
-      }
-    },
-    [keySaved, apiKey, r?.coverLetter, coverText, jobLine, jdBlock, sourceResume, voiceSec],
-  )
-
-  const generateConnectVariant = useCallback(
-    async () => {
-      if (!keySaved || !apiKey) {
-        alert('Save your API key first.')
-        return
-      }
-      const base = String(connectText || r?.outreachMessage || '').trim()
-      if (!base) return
-      setConnectLoading(true)
-      setConnectErr('')
-      try {
-        const varHint = 'REGENERATION: different hook; same facts and honesty.\n\n'
-        const userContent =
-          varHint +
-          'Job: ' + jobLine + '\n' +
-          (jdBlock ? 'Context:\n' + jdBlock.slice(0, 4000) + '\n\n' : '') +
-          'REFERENCE MESSAGE:\n' + base.slice(0, 2000) +
-          '\n\nRewrite as a short outreach message (under 280 characters if possible). Plain text. No emojis. Facts only from reference. Return ONLY the message.'
-
-        const res = await kitFetchMessages(
-          apiKey,
-          'You write concise outreach messages. Never invent employers or roles. No emojis.',
-          userContent,
-          600,
-        )
-        if (!res.ok) {
-          const e = await res.json().catch(() => ({}))
-          throw new Error(e.error?.message || 'API error ' + res.status)
-        }
-        const data = await res.json()
-        setConnectText(anthropicMessageText(data).trim())
-      } catch (e) {
-        setConnectErr(e.message || 'Something went wrong.')
-      } finally {
-        setConnectLoading(false)
-      }
-    },
-    [keySaved, apiKey, r?.outreachMessage, connectText, jobLine, jdBlock],
-  )
-
   useEffect(() => {
     if (!resumeOpen || !canGenerate || !keySaved || !apiKey) return
     let cached = ''
@@ -1788,42 +1669,33 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     }
     if (autoGenAttemptedRef.current === storageKey) return
     autoGenAttemptedRef.current = storageKey
-    generateTailoredResume(false)
+    generateTailoredResume()
   }, [resumeOpen, storageKey, canGenerate, keySaved, apiKey, generateTailoredResume])
 
   useEffect(() => {
     if (!coverOpen || !showCoverLetter) return
-    if (coverLoading) return
     const t = String(coverText || '').trim()
     if (t) return
     const fromR = String(r?.coverLetter || '').trim()
     if (fromR) setCoverText(fromR)
-  }, [coverOpen, showCoverLetter, r?.coverLetter, coverText, coverLoading])
+  }, [coverOpen, showCoverLetter, r?.coverLetter, coverText])
 
   useEffect(() => {
     if (!connectOpen || !showOutreach) return
-    if (connectLoading) return
     const t = String(connectText || '').trim()
     if (t) return
     const fromR = String(r?.outreachMessage || '').trim()
     if (fromR) setConnectText(fromR)
-  }, [connectOpen, showOutreach, r?.outreachMessage, connectText, connectLoading])
+  }, [connectOpen, showOutreach, r?.outreachMessage, connectText])
 
   const onResumeRowClick = () => {
-    setResumeOpen(v => {
-      const n = !v
-      if (n) {
-        setResumeEdit(false)
-      }
-      return n
-    })
+    setResumeOpen(v => !v)
   }
 
   const onCoverRowClick = () => {
     setCoverOpen(v => {
       const n = !v
       if (n) {
-        setCoverEdit(false)
         const fromR = String(r?.coverLetter || '').trim()
         if (fromR && !String(coverText || '').trim()) setCoverText(fromR)
       }
@@ -1835,7 +1707,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     setConnectOpen(v => {
       const n = !v
       if (n) {
-        setConnectEdit(false)
         const fromR = String(r?.outreachMessage || '').trim()
         if (fromR && !String(connectText || '').trim()) setConnectText(fromR)
       }
@@ -1843,16 +1714,8 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     })
   }
 
-  const handleResumeRegen = async () => {
-    await generateTailoredResume(true)
-  }
-
-  const handleCoverRegen = async () => {
-    await generateCoverVariant()
-  }
-
-  const handleConnectRegen = async () => {
-    await generateConnectVariant()
+  const goMyResume = () => {
+    if (typeof onOpenMyResumeTab === 'function') onOpenMyResumeTab()
   }
 
   if (!allowApplyOutputs || (!showCoverLetter && !showOutreach)) return null
@@ -1892,9 +1755,6 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
               setResumeOpen(false)
               setCoverOpen(false)
               setConnectOpen(false)
-              setResumeEdit(false)
-              setCoverEdit(false)
-              setConnectEdit(false)
             }
             return next
           })
@@ -1938,27 +1798,15 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
                 {!loading && (
                   <>
                     {err && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{err}</div>}
-                    {!resumeEdit &&
-                      (tailoredResumePayload.ok ? (
-                        <TailoredResumeJsonView data={tailoredResumePayload.data} paperBg={C.kitResumeBg} />
-                      ) : (
-                        <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />
-                      ))}
+                    {tailoredResumePayload.ok ? (
+                      <TailoredResumeJsonView data={tailoredResumePayload.data} paperBg={C.kitResumeBg} />
+                    ) : (
+                      <TailoredResumeView text={tailored} paperBg={C.kitResumeBg} />
+                    )}
                     <KitActionRow
-                      onRegenerate={handleResumeRegen}
-                      regenDisabled={loading || !canGenerate}
-                      regenLabel={tailored.trim() ? 'Regenerate' : 'Generate'}
+                      hideRegenerate
                       copyText={resumeCopyPlain}
-                      onEditInContent={() => setResumeEdit(e => !e)}
-                      editOpen={resumeEdit}
-                      editValue={tailored}
-                      onEditChange={v => {
-                        setTailored(v)
-                        try {
-                          sessionStorage.setItem(storageKey, v)
-                        } catch { /* ignore */ }
-                      }}
-                      greigeBg={C.kitResumeTextareaBg}
+                      onMyResumePlusClick={goMyResume}
                       onDownloadPdf={
                         tailoredResumePayload.ok
                           ? () =>
@@ -1986,32 +1834,16 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
               </button>
               {coverOpen && (
                 <div style={{ padding: '12px 0 16px', borderBottom: showOutreach ? `1px solid ${C.border}` : 'none' }}>
-                  {coverLoading && (
-                    <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
-                      <Dots /> Working on your cover letter…
-                    </div>
-                  )}
-                  {!coverLoading && (
-                    <>
-                      {coverErr && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{coverErr}</div>}
-                      {!coverEdit && (
-                        <div style={{ padding: '12px 14px', borderRadius: 12, background: C.kitCoverBg, border: `1px solid ${C.letterPanelBorder}` }}>
-                          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{coverText}</pre>
-                        </div>
-                      )}
-                      <KitActionRow
-                        onRegenerate={handleCoverRegen}
-                        regenDisabled={coverLoading || !String(coverText || r?.coverLetter || '').trim()}
-                        regenLabel="Regenerate"
-                        copyText={coverText}
-                        onEditInContent={() => setCoverEdit(e => !e)}
-                        editOpen={coverEdit}
-                        editValue={coverText}
-                        onEditChange={setCoverText}
-                        greigeBg={C.kitCoverBg}
-                      />
-                    </>
-                  )}
+                  <div style={{ padding: '12px 14px', borderRadius: 12, background: C.kitResumeBg, border: `1px solid ${C.border}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{coverText}</pre>
+                  </div>
+                  <KitActionRow
+                    hideRegenerate
+                    copyText={coverText}
+                    onMyResumePlusClick={goMyResume}
+                    onDownloadPdf={() => generateCoverLetterPDF(coverText)}
+                    downloadDisabled={!String(coverText || '').trim()}
+                  />
                 </div>
               )}
             </div>
@@ -2024,32 +1856,14 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
               </button>
               {connectOpen && (
                 <div style={{ padding: '12px 0 16px' }}>
-                  {connectLoading && (
-                    <div style={{ padding: 16, display: 'flex', alignItems: 'center', gap: 10, color: C.muted, fontSize: 13 }}>
-                      <Dots /> Working on your message…
-                    </div>
-                  )}
-                  {!connectLoading && (
-                    <>
-                      {connectErr && <div style={{ fontSize: 12, color: C.red, marginBottom: 10 }}>{connectErr}</div>}
-                      {!connectEdit && (
-                        <div style={{ padding: '12px 14px', borderRadius: 12, background: C.connectPanelBg, border: `1px solid ${C.connectPanelBorder}` }}>
-                          <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{connectText}</pre>
-                        </div>
-                      )}
-                      <KitActionRow
-                        onRegenerate={handleConnectRegen}
-                        regenDisabled={connectLoading || !String(connectText || r?.outreachMessage || '').trim()}
-                        regenLabel="Regenerate"
-                        copyText={connectText}
-                        onEditInContent={() => setConnectEdit(e => !e)}
-                        editOpen={connectEdit}
-                        editValue={connectText}
-                        onEditChange={setConnectText}
-                        greigeBg={C.connectPanelBg}
-                      />
-                    </>
-                  )}
+                  <div style={{ padding: '12px 14px', borderRadius: 12, background: C.kitResumeBg, border: `1px solid ${C.border}` }}>
+                    <pre style={{ whiteSpace: 'pre-wrap', fontSize: 13, lineHeight: 1.72, fontFamily: "'DM Sans', sans-serif", color: C.text, margin: 0 }}>{connectText}</pre>
+                  </div>
+                  <KitActionRow
+                    hideRegenerate
+                    copyText={connectText}
+                    onMyResumePlusClick={goMyResume}
+                  />
                 </div>
               )}
             </div>
@@ -2070,13 +1884,21 @@ function buildSystemPrompt(resumeSection, voiceSection, userName, userContact, u
     ? 'OVERRIDE MODE: User has chosen to apply regardless of score. Generate full output including cover letter, project idea, and outreach message no matter what. Still provide an honest score and verdict but always include all outputs.'
     : `SCORING: 0-100. ${threshold}+=APPLY+full output (include coverLetter and outreachMessage). <${threshold}=SKIP: verdict SKIP, set coverLetter to "" and outreachMessage to "" (no draft apply materials). Verdict SCAM: set coverLetter and outreachMessage to "".\nSCAM flags: no real company, vague duties, unusually high pay, MLM, asks personal info, poor grammar.`
 
+  const bestVersionBar =
+    'BEST VERSION (one response — combine all three):\n' +
+    '- Job posting: Read the user\'s job description (or URL context) for role title, must-have skills, and recurring keywords. Use that language to inform matchedSkills, missingSkills, companySnapshot, and honest alignment in the letter — but the job text is NOT permission to invent resume facts.\n' +
+    '- Resume: The candidate resume above is the only source of employers, dates, titles, tools, metrics, and education. Never claim experience that is not supported there.\n' +
+    '- VoicePrint: When a voice profile is provided, it governs tone, rhythm, word choice, and banned phrasing for coverLetter, outreachMessage, and transferableNotes. If no voice profile, write clear professional prose.\n'
+
   return 'You are a job match analyzer and cover letter writer.\n' +
     resumeSection + '\n' +
     voiceSection + '\n\n' +
     scoringRules + '\n\n' +
+    bestVersionBar + '\n' +
     'OUTPUT — valid JSON only, no markdown:\n' +
     '{"jobTitle":"","company":"","score":0,"verdict":"APPLY|SKIP|SCAM","verdictReason":"","scamFlags":[],"companySnapshot":"","matchedSkills":[],"missingSkills":[],"transferableNotes":"","coverLetter":"","projectIdea":"","projectAIPrompt":"","outreachMessage":""}\n\n' +
     'COVER LETTER (3 paragraphs, 250-350 words):\n' +
+    '- Deliver one polished final draft for coverLetter and outreachMessage in this response — the app does not request alternate AI rewrites. That draft should be your best blend of job-posting keywords and fit, resume-backed facts, and VoicePrint style.\n' +
     '- ' + voiceInstruction + '\n' +
     (bannedPhrases && bannedPhrases.trim()
       ? '- The candidate has specifically flagged these phrases as ones they never use: ' + bannedPhrases.trim() + '\n'
@@ -2271,7 +2093,7 @@ function CoverLetterEditor({ coverLetter, jobTitle, company, onClose, profile })
 function DocumentsTab({ onOpenCover, onOpenResume, lastWithCover }) {
   return (
     <div style={{ marginTop: 24 }}>
-      <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 4, fontFamily: "'Syne', 'DM Sans', sans-serif" }}>Documents <span style={{ color: C.cyan }}>▸</span></h1>
+      <h1 style={{ fontSize: 30, fontWeight: 700, letterSpacing: '-0.02em', marginBottom: 4, fontFamily: "'Syne', 'DM Sans', sans-serif" }}>myResume+ <span style={{ color: C.cyan }}>▸</span></h1>
       <p style={{ fontSize: 14, color: C.muted, marginBottom: 24, lineHeight: 1.6 }}>Edit your cover letter or resume for download and copy.</p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
         <Card>
@@ -2411,15 +2233,15 @@ export default function App() {
           {profile && (
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
               <nav style={{ display:'flex', gap:2 }}>
-                {NAV.map(t => (
-                  <button key={t} onClick={() => { setTab(t); setDocView(null) }} style={{
+                {NAV.map(({ id, label }) => (
+                  <button key={id} onClick={() => { setTab(id); setDocView(null) }} style={{
                     padding:'7px 14px', borderRadius:8, border:'none', cursor:'pointer',
                     fontSize:13, fontWeight:500, fontFamily:"'DM Sans', sans-serif",
-                    background:tab===t?C.dark:'transparent', color:tab===t?'#fff':C.muted, transition:'all 0.15s',
+                    background:tab===id?C.dark:'transparent', color:tab===id?'#fff':C.muted, transition:'all 0.15s',
                   }}>
-                    {t}
-                    {t==='History'&&history.length>0&&<span style={{ marginLeft:5, fontSize:10, background:C.cyanDim, color:C.cyan, padding:'1px 5px', borderRadius:10, fontFamily:'monospace' }}>{history.length}</span>}
-                    {t==='VoicePrint'&&!voiceProfile&&<span style={{ marginLeft:5, fontSize:10, background:C.amberBg, color:C.amber, padding:'1px 5px', borderRadius:10 }}>!</span>}
+                    {label}
+                    {id==='History'&&history.length>0&&<span style={{ marginLeft:5, fontSize:10, background:C.cyanDim, color:C.cyan, padding:'1px 5px', borderRadius:10, fontFamily:'monospace' }}>{history.length}</span>}
+                    {id==='VoicePrint'&&!voiceProfile&&<span style={{ marginLeft:5, fontSize:10, background:C.amberBg, color:C.amber, padding:'1px 5px', borderRadius:10 }}>!</span>}
                   </button>
                 ))}
               </nav>
@@ -2527,7 +2349,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           <Btn small onClick={() => setTab('VoicePrint')} style={{ background:C.amberBg, border:`1px solid rgba(122,79,0,0.2)`, color:C.amber }}>Set up →</Btn>
         </div>
       )}
-      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze</h1>
+      <h1 style={{ fontSize:30, fontWeight:700, letterSpacing:'-0.02em', marginBottom:4, fontFamily:"'Syne', 'DM Sans', sans-serif" }}>Analyze Job</h1>
       <p style={{ fontSize:14, color:C.muted, marginBottom:24, lineHeight:1.6 }}>Paste a job description. Get your match score, cover letter, and outreach message.</p>
       <div style={{ marginBottom:14 }}>
         <Label>Mode</Label>
@@ -2583,7 +2405,7 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           </div>
         )}
         <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Analyze</span>
+          <span style={{ fontSize: 15, fontWeight: 600, color: C.text, fontFamily: "'DM Sans', sans-serif", lineHeight: 1 }}>Begin Analysis</span>
           <button
             type="button"
             onClick={() => analyze(false)}
@@ -2601,8 +2423,8 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
               opacity: loading ? 0.45 : 1,
               fontFamily: "'DM Sans', sans-serif",
             }}
-            aria-label={loading ? 'Running job analysis' : 'Run job analysis'}
-            title={loading ? 'Analyzing…' : 'Run job analysis'}
+            aria-label={loading ? 'Running job analysis' : 'Begin analysis'}
+            title={loading ? 'Analyzing…' : 'Begin analysis'}
           >
             <span
               style={{
@@ -2627,13 +2449,14 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           keySaved={keySaved}
           voiceProfile={voiceProfile}
           matchThreshold={Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85}
+          setTab={setTab}
         />
       )}
     </div>
   )
 }
 
-function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold }) {
+function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold, setTab }) {
   const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
   const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
   const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
@@ -2901,6 +2724,7 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                 showCoverLetter={showCoverLetter}
                 showOutreach={showOutreach}
                 embedded
+                onOpenMyResumeTab={() => setTab('Documents')}
               />
             )}
           </div>
@@ -2943,6 +2767,7 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
               allowApplyOutputs={allowApplyOutputs}
               showCoverLetter={showCoverLetter}
               showOutreach={showOutreach}
+              onOpenMyResumeTab={() => setTab('Documents')}
             />
           </div>
         )}
