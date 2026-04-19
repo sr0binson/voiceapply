@@ -141,11 +141,22 @@ function Dots() {
   )
 }
 
-/** jsPDF: letter page fill — lightest grey (matches tailored resume preview). */
+/** jsPDF: match C.kitResumeBg #fafafa — full-bleed fill every page (avoids white seams). */
+const PDF_RESUME_BG = [250, 250, 250]
+/** Tailored resume on-screen palette (jsPDF uses Helvetica as the DM Sans substitute). */
+const PDF_NAME = [10, 10, 9]
+const PDF_HEADLINE = [51, 51, 51]
+const PDF_BODY = [28, 28, 26] // #1c1c1a
+const PDF_SECTION_TITLE = [44, 44, 40] // #2c2c28
+const PDF_LINK = [21, 122, 115] // C.resumeLinkCyan
+const PDF_MUTED = [107, 107, 100]
+/** Section underline — C.borderStrong-ish, not near-black (avoids a “bar” at page breaks). */
+const PDF_SECTION_RULE = [217, 217, 215]
+
 function pdfResumePageBackground(doc) {
   const w = doc.internal.pageSize.getWidth()
   const h = doc.internal.pageSize.getHeight()
-  doc.setFillColor(250, 250, 250)
+  doc.setFillColor(...PDF_RESUME_BG)
   doc.rect(0, 0, w, h, 'F')
 }
 
@@ -218,8 +229,8 @@ function pdfDrawResumeContactLine(doc, margin, contentW, startY, data) {
   return y + 6
 }
 
-/** Contact row from tailored JSON: location • phone • email • up to 2 URLs (cyan links). */
-function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact) {
+/** Contact row from tailored JSON: matches TailoredResumeJsonContactRow (body #1c1c1a, links #157a73, muted separators). */
+function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact, { scale = 1 } = {}) {
   const c = normalizeTailoredResumeJson({ contact }).contact
   const parts = []
   if (String(c.location || '').trim()) parts.push({ text: String(c.location).trim() })
@@ -236,19 +247,17 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact) 
   if (!parts.length) return startY
 
   const sep = '  •  '
-  const cyan = [78, 205, 196]
-  const muted = [100, 100, 96]
   let x = margin
   let y = startY
   const maxX = margin + contentW
-  const fs = 9.5
+  const fs = Math.max(7, 10 * scale)
   const lineH = fs * 1.28
   doc.setFontSize(fs)
   doc.setFont('helvetica', 'normal')
 
   parts.forEach((p, i) => {
     if (i > 0) {
-      doc.setTextColor(...muted)
+      doc.setTextColor(...PDF_MUTED)
       const sw = doc.getTextWidth(sep)
       if (x + sw > maxX && x > margin) {
         x = margin
@@ -264,83 +273,107 @@ function pdfDrawTailoredJsonContactLine(doc, margin, contentW, startY, contact) 
       y += lineH
     }
     if (p.url) {
-      doc.setTextColor(...cyan)
+      doc.setTextColor(...PDF_LINK)
       doc.text(label, x, y)
       doc.link(x, y - fs * 0.9, w, fs * 1.2, { url: p.url })
     } else {
-      doc.setTextColor(...muted)
+      doc.setTextColor(...PDF_BODY)
       doc.text(label, x, y)
     }
     x += w
   })
-  return y + 6
+  return y + 6 * scale
 }
 
-/** PDF from structured tailored resume JSON (matches on-screen layout, not plain-text dump). */
-function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
+/** Max pages from Settings (va_experience_level): Entry/Mid → 1; Senior/Lead & Executive → 2. */
+function getResumePdfMaxPages() {
+  try {
+    const v = localStorage.getItem('va_experience_level')
+    if (v === 'Senior / Lead' || v === 'Executive') return 2
+  } catch { /* ignore */ }
+  return 1
+}
+
+const PDF_BULLET = '\u2022'
+
+/**
+ * Structured tailored resume PDF (Helvetica ≈ DM Sans). `scale` shrinks type/spacing so Entry/Mid can stay on one page.
+ */
+function buildTailoredResumePdfDoc(data, { maxPages, scale }) {
   const d = normalizeTailoredResumeJson(data)
   const doc = new jsPDF({ unit: 'pt', format: 'letter' })
   const margin = 58
   const pageW = 612
   const contentW = pageW - margin * 2
+  const pageH = doc.internal.pageSize.getHeight()
+  const bottomY = pageH - margin
   let y = margin
+  const fs = n => Math.max(6, n * scale)
+  const gap = n => n * scale
+  const bulletIndent = 12 * scale
+  const bulletX = margin + 3 * scale
+
   pdfResumePageBackground(doc)
+
   const checkPage = (need = 24) => {
-    if (y + need > 730) {
+    const n = need * scale
+    if (y + n <= bottomY) return
+    if (doc.getNumberOfPages() < maxPages) {
       doc.addPage()
       pdfResumePageBackground(doc)
       y = margin
     }
   }
 
-  doc.setFontSize(22)
+  doc.setFontSize(fs(20))
   doc.setFont('helvetica', 'bold')
-  doc.setTextColor(28, 28, 26)
+  doc.setTextColor(...PDF_NAME)
   checkPage(30)
   doc.text(d.name || 'Resume', margin, y)
-  y += 26
+  y += gap(26)
 
   if (d.headline) {
     const hl = normalizeHeadlineDisplay(d.headline)
-    doc.setFontSize(11)
+    doc.setFontSize(fs(12))
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(51, 51, 51)
+    doc.setTextColor(...PDF_HEADLINE)
     const hlLines = doc.splitTextToSize(hl, contentW)
     checkPage(18)
     doc.text(hlLines[0] || '', margin, y)
-    y += 15
+    y += gap(15)
   }
 
-  y = pdfDrawTailoredJsonContactLine(doc, margin, contentW, y, d.contact)
-  checkPage(16)
-  doc.setDrawColor(200, 200, 196)
-  doc.setLineWidth(0.5)
-  doc.line(margin, y, pageW - margin, y)
-  y += 10
+  y = pdfDrawTailoredJsonContactLine(doc, margin, contentW, y, d.contact, { scale })
+  y += gap(8)
 
   const flushBullets = (bulletBuf, sectionId) => {
     if (!bulletBuf.length) return
     if (sectionId === 'skills') {
       const txt = bulletBuf.join(' • ')
-      doc.setFontSize(10.5)
+      doc.setFontSize(fs(11))
       doc.setFont('helvetica', 'normal')
-      doc.setTextColor(28, 28, 26)
+      doc.setTextColor(...PDF_BODY)
       doc.splitTextToSize(txt, contentW).forEach(line => {
         checkPage(16)
         doc.text(line, margin, y)
-        y += 14
+        y += gap(14)
       })
     } else {
       bulletBuf.forEach(b => {
         checkPage(18)
-        doc.setFontSize(10.5)
+        doc.setFontSize(fs(11))
         doc.setFont('helvetica', 'normal')
-        doc.setTextColor(28, 28, 26)
-        doc.text('-', margin, y)
-        doc.splitTextToSize(b, contentW - 14).forEach(line => {
+        doc.setTextColor(...PDF_BODY)
+        const lines = doc.splitTextToSize(b, contentW - bulletIndent)
+        lines.forEach((line, li) => {
           checkPage(16)
-          doc.text(line, margin + 14, y)
-          y += 14
+          if (li === 0) {
+            doc.text(PDF_BULLET, bulletX, y)
+            doc.text(line, margin + bulletIndent, y)
+          } else {
+            doc.text(line, margin + bulletIndent, y)
+          }
+          y += gap(14)
         })
       })
     }
@@ -350,24 +383,24 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
   for (const sec of d.sections) {
     const sid = resumeSectionId(sec.title)
     const ls = (sec.lines || []).map(l => String(l).trim()).filter(Boolean)
-    checkPage(36)
-    y += 6
-    doc.setFontSize(9)
+    checkPage(40)
+    y += gap(6)
+    doc.setFontSize(fs(9))
     doc.setFont('helvetica', 'bold')
-    doc.setTextColor(28, 28, 26)
+    doc.setTextColor(...PDF_SECTION_TITLE)
     doc.text(String(sec.title || 'SECTION').toUpperCase(), margin, y)
-    y += 4
-    doc.setDrawColor(28, 28, 26)
-    doc.setLineWidth(1)
+    y += gap(4)
+    doc.setDrawColor(...PDF_SECTION_RULE)
+    doc.setLineWidth(0.5)
     doc.line(margin, y, pageW - margin, y)
-    y += 10
+    y += gap(10)
 
     if (sid === 'projects') {
       const blocks = splitProjectLines(ls)
       for (const b of blocks) {
         checkPage(24)
-        doc.setFontSize(10.5)
-        doc.setTextColor(28, 28, 26)
+        doc.setFontSize(fs(11))
+        doc.setTextColor(...PDF_BODY)
         doc.setFont('helvetica', 'bold')
         const tw = doc.getTextWidth(b.title)
         const toolsStr = b.tools ? ` - ${b.tools}` : ''
@@ -378,31 +411,31 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           doc.text(b.title, margin, y)
           doc.setFont('helvetica', 'normal')
           doc.text(toolsStr, margin + tw, y)
-          y += 9
+          y += gap(9)
         } else {
           doc.setFont('helvetica', 'bold')
           doc.splitTextToSize(b.title, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 13
+            y += gap(13)
           })
           if (b.tools) {
             doc.setFont('helvetica', 'normal')
             doc.splitTextToSize(toolsStr.trim(), contentW).forEach(line => {
               checkPage(16)
               doc.text(line, margin, y)
-              y += 13
+              y += gap(13)
             })
           }
         }
         for (const dline of b.desc) {
           doc.setFont('helvetica', 'normal')
-          doc.setFontSize(10.5)
-          doc.setTextColor(28, 28, 26)
+          doc.setFontSize(fs(11))
+          doc.setTextColor(...PDF_BODY)
           doc.splitTextToSize(dline, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 12
+            y += gap(12)
           })
         }
       }
@@ -414,14 +447,14 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
       const blocks = splitEducationLines(eduLs)
       for (const b of blocks) {
         checkPage(22)
-        doc.setFontSize(10.5)
-        doc.setTextColor(28, 28, 26)
+        doc.setFontSize(fs(11))
+        doc.setTextColor(...PDF_BODY)
         doc.setFont('helvetica', 'bold')
         const titleText = formatEducationTitleLine(b.title)
         doc.splitTextToSize(titleText, contentW).forEach(line => {
           checkPage(16)
           doc.text(line, margin, y)
-          y += 13
+          y += gap(13)
         })
         doc.setFont('helvetica', 'normal')
         const eduBody = joinEducationDescriptionParts(b.desc)
@@ -429,10 +462,10 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
           doc.splitTextToSize(eduBody, contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 12
+            y += gap(12)
           })
         }
-        y += 2
+        y += gap(2)
       }
       continue
     }
@@ -455,39 +488,54 @@ function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
         const first = para[0]
         const { title: jobTitle, dates } = splitTitleAndDates(first)
         checkPage(22)
-        doc.setFontSize(10.5)
+        doc.setFontSize(fs(11))
         doc.setFont('helvetica', 'bold')
-        doc.setTextColor(28, 28, 26)
+        doc.setTextColor(...PDF_BODY)
         doc.text(jobTitle, margin, y)
         if (dates) {
           doc.setFont('helvetica', 'italic')
+          doc.setTextColor(...PDF_BODY)
           const dw = doc.getTextWidth(dates)
           doc.text(dates, pageW - margin - dw, y)
           doc.setFont('helvetica', 'bold')
         }
-        y += 15
+        y += gap(15)
         for (let j = 1; j < para.length; j++) {
           doc.setFont('helvetica', 'normal')
+          doc.setTextColor(...PDF_BODY)
           doc.splitTextToSize(para[j], contentW).forEach(line => {
             checkPage(16)
             doc.text(line, margin, y)
-            y += 13
+            y += gap(13)
           })
         }
       } else {
-        doc.setFontSize(10.5)
+        doc.setFontSize(fs(11))
         doc.setFont('helvetica', 'normal')
-        doc.setTextColor(28, 28, 26)
+        doc.setTextColor(...PDF_BODY)
         doc.splitTextToSize(para.join('\n'), contentW).forEach(line => {
           checkPage(16)
           doc.text(line, margin, y)
-          y += 14
+          y += gap(14)
         })
       }
     }
     flushBullets(bulletBuf, sid)
   }
 
+  return doc
+}
+
+/** PDF from structured tailored resume JSON — matches on-screen layout; page count follows va_experience_level. */
+function generateTailoredResumeJsonPDF(data, filenameBase = 'Resume') {
+  const maxPages = getResumePdfMaxPages()
+  let scale = 1
+  let doc = buildTailoredResumePdfDoc(data, { maxPages, scale })
+  for (let attempt = 0; attempt < 9 && doc.getNumberOfPages() > maxPages; attempt++) {
+    scale -= 0.045
+    if (scale < 0.72) break
+    doc = buildTailoredResumePdfDoc(data, { maxPages, scale })
+  }
   const safe = String(filenameBase || 'Resume')
     .replace(/[^\w\-]+/g, '_')
     .slice(0, 80)
@@ -575,6 +623,30 @@ function qualifiesForApplyLetterOutputs(r, matchThreshold) {
 const KIT_TAILORED_RESUME_PREFIX = 'va_kit_tailored_resume_'
 /** Faster model for myResume+ (tailored resume / cover / connect) — Sonnet was timing out for many users. */
 const KIT_MESSAGES_MODEL = 'claude-haiku-4-5-20251001'
+
+const VA_EXPERIENCE_LEVEL_KEY = 'va_experience_level'
+const EXPERIENCE_LEVEL_OPTIONS = Object.freeze(['Entry Level', 'Mid Level', 'Senior / Lead', 'Executive'])
+
+function loadExperienceLevel() {
+  try {
+    const v = localStorage.getItem(VA_EXPERIENCE_LEVEL_KEY)
+    if (v && EXPERIENCE_LEVEL_OPTIONS.includes(v)) return v
+  } catch { /* ignore */ }
+  return 'Mid Level'
+}
+
+/** Tailored JSON resume system prompt — page length follows Settings experience level. */
+function buildTailoredResumeSystemPrompt(experienceLevel) {
+  const level = EXPERIENCE_LEVEL_OPTIONS.includes(experienceLevel) ? experienceLevel : 'Mid Level'
+  const pageRule =
+    level === 'Entry Level' || level === 'Mid Level'
+      ? 'Resume length: target one printed page. Prioritize relevance, keep bullets concise, avoid filler.'
+      : 'Resume length: at most two printed pages; use a second page only when needed for depth, not padding.'
+  return (
+    'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Produce one complete, polished version — your best layout and wording in this single response; do not assume a second pass. Integrate job-description alignment (keywords and role fit), resume truth (only source of facts), and VoicePrint (tone/style only when provided). Skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. Never hallucinate. Never use emojis. ' +
+    `Candidate experience level (user setting): ${level}. ${pageRule}`
+  )
+}
 
 /** All-caps lines that are real section titles (not e.g. a person's name). */
 function lineLooksLikeKnownResumeSectionTitle(trimmed) {
@@ -1839,7 +1911,18 @@ function KitActionRow({
   )
 }
 
-function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutputs, showCoverLetter, showOutreach, embedded, onOpenMyResumeTab }) {
+function MyResumePlusSection({
+  r,
+  voiceProfile,
+  apiKey,
+  keySaved,
+  allowApplyOutputs,
+  showCoverLetter,
+  showOutreach,
+  embedded,
+  onOpenMyResumeTab,
+  experienceLevel,
+}) {
   const storageKey = KIT_TAILORED_RESUME_PREFIX + String(r?.id ?? `${r?.jobTitle || ''}_${r?.company || ''}`.replace(/\s/g, '_'))
   const [mainOpen, setMainOpen] = useState(false)
   const [connectOpen, setConnectOpen] = useState(false)
@@ -1951,7 +2034,7 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
 
       const res = await kitFetchMessages(
         apiKey,
-        'You output tailored resumes as a single JSON object only (valid JSON, no markdown). Produce one complete, polished version — your best layout and wording in this single response; do not assume a second pass. Integrate job-description alignment (keywords and role fit), resume truth (only source of facts), and VoicePrint (tone/style only when provided). Skill-gap notes guide emphasis; they are NOT permission to invent employers, dates, degrees, certifications, tools, or metrics. Never hallucinate. Never use emojis.',
+        buildTailoredResumeSystemPrompt(experienceLevel),
         userContent,
         4096,
       )
@@ -1979,7 +2062,19 @@ function MyResumePlusSection({ r, voiceProfile, apiKey, keySaved, allowApplyOutp
     } finally {
       setLoading(false)
     }
-  }, [keySaved, apiKey, sourceResume, jdBlock, jobLine, gapsLine, transferNotes, r?.jobTitle, voiceProfile?.analysis, storageKey])
+  }, [
+    keySaved,
+    apiKey,
+    sourceResume,
+    jdBlock,
+    jobLine,
+    gapsLine,
+    transferNotes,
+    r?.jobTitle,
+    voiceProfile?.analysis,
+    storageKey,
+    experienceLevel,
+  ])
 
   useEffect(() => {
     if (!resumeOpen || !canGenerate || !keySaved || !apiKey) return
@@ -2273,7 +2368,7 @@ function OnboardingScreen({ onComplete }) {
   )
 }
 
-function SettingsTab({ profile, onProfileSaved }) {
+function SettingsTab({ profile, onProfileSaved, experienceLevel, onExperienceLevelChange }) {
   const [data, setData] = useState({
     name: profile?.name || '',
     email: profile?.email || '',
@@ -2321,6 +2416,23 @@ function SettingsTab({ profile, onProfileSaved }) {
               onChange={e => set('matchThreshold', Math.max(0, Math.min(100, Number(e.target.value || 0))))}
               style={field}
             />
+          </div>
+          <div>
+            <Label>Experience level</Label>
+            <select
+              value={experienceLevel}
+              onChange={e => onExperienceLevelChange(e.target.value)}
+              style={{ ...field, cursor: 'pointer' }}
+            >
+              {EXPERIENCE_LEVEL_OPTIONS.map(opt => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </select>
+            <p style={{ fontSize: 12, color: C.muted, marginTop: 6, lineHeight: 1.5 }}>
+              Tailored resume length: Entry and Mid → one page; Senior/Lead and Executive → up to two pages.
+            </p>
           </div>
         </div>
         <div style={{ display:'flex', gap:12, marginTop:24, flexWrap:'wrap' }}>
@@ -2527,8 +2639,17 @@ export default function App() {
   const [history, setHistory] = useState(() => loadStorage('va_history',[]))
   const [voiceProfile, setVoiceProfile] = useState(() => loadStorage('va_voice',null))
   const [profile, setProfile] = useState(() => loadStorage('va_profile',null))
+  const [experienceLevel, setExperienceLevel] = useState(loadExperienceLevel)
   const [currentResult, setCurrentResult] = useState(null)
   const [docView, setDocView] = useState(null)
+
+  function onExperienceLevelChange(v) {
+    const next = EXPERIENCE_LEVEL_OPTIONS.includes(v) ? v : 'Mid Level'
+    setExperienceLevel(next)
+    try {
+      localStorage.setItem(VA_EXPERIENCE_LEVEL_KEY, next)
+    } catch { /* ignore */ }
+  }
 
   function saveKey() {
     if (!apiKey.startsWith('sk-ant-')) { alert("Anthropic keys start with sk-ant-"); return }
@@ -2601,7 +2722,19 @@ export default function App() {
                 <button onClick={() => { localStorage.removeItem('va_key'); setKeySaved(false); setApiKey('') }} style={{ fontSize:12, color:C.faint, background:'none', border:'none', cursor:'pointer', fontFamily:"'DM Sans', sans-serif" }}>Change</button>
               </div>
             )}
-            {tab==='Analyze' && <AnalyzeTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onResult={onResult} currentResult={currentResult} setCurrentResult={setCurrentResult} setTab={setTab} profile={profile} />}
+            {tab==='Analyze' && (
+              <AnalyzeTab
+                apiKey={apiKey}
+                keySaved={keySaved}
+                voiceProfile={voiceProfile}
+                onResult={onResult}
+                currentResult={currentResult}
+                setCurrentResult={setCurrentResult}
+                setTab={setTab}
+                profile={profile}
+                experienceLevel={experienceLevel}
+              />
+            )}
             {tab==='Documents' && (
               docView==='cover' ? <CoverLetterEditor key={lastWithCover?.id ?? 'cover'} coverLetter={lastWithCover?.coverLetter||''} jobTitle={lastWithCover?.jobTitle||''} company={lastWithCover?.company||''} onClose={() => setDocView(null)} profile={profile} />
               : docView==='resume' ? <ResumeEditor onClose={() => setDocView(null)} profile={profile} />
@@ -2609,7 +2742,14 @@ export default function App() {
             )}
             {tab==='VoicePrint' && <VoicePrintTab apiKey={apiKey} keySaved={keySaved} voiceProfile={voiceProfile} onVoiceSaved={onVoiceSaved} />}
             {tab==='History' && <HistoryTab history={history} onView={r => { setCurrentResult(r); setTab('Analyze') }} />}
-            {tab==='Settings' && <SettingsTab profile={profile} onProfileSaved={onProfileSaved} />}
+            {tab==='Settings' && (
+              <SettingsTab
+                profile={profile}
+                onProfileSaved={onProfileSaved}
+                experienceLevel={experienceLevel}
+                onExperienceLevelChange={onExperienceLevelChange}
+              />
+            )}
           </>
         )}
       </main>
@@ -2617,7 +2757,17 @@ export default function App() {
   )
 }
 
-function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, setCurrentResult, setTab, profile }) {
+function AnalyzeTab({
+  apiKey,
+  keySaved,
+  voiceProfile,
+  onResult,
+  currentResult,
+  setCurrentResult,
+  setTab,
+  profile,
+  experienceLevel,
+}) {
   const [jd, setJd] = useState('')
   const [inputMode, setInputMode] = useState('description')
   const [jobUrl, setJobUrl] = useState('')
@@ -2766,13 +2916,14 @@ function AnalyzeTab({ apiKey, keySaved, voiceProfile, onResult, currentResult, s
           voiceProfile={voiceProfile}
           matchThreshold={Number.isFinite(Number(profile?.matchThreshold)) ? Number(profile.matchThreshold) : 85}
           setTab={setTab}
+          experienceLevel={experienceLevel}
         />
       )}
     </div>
   )
 }
 
-function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold, setTab }) {
+function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matchThreshold, setTab, experienceLevel }) {
   const allowApplyOutputs = qualifiesForApplyLetterOutputs(r, matchThreshold)
   const showCoverLetter = !!(r.coverLetter && String(r.coverLetter).trim()) && allowApplyOutputs
   const showOutreach = !!(r.outreachMessage && String(r.outreachMessage).trim()) && allowApplyOutputs
@@ -3041,6 +3192,7 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
                 showOutreach={showOutreach}
                 embedded
                 onOpenMyResumeTab={() => setTab('Documents')}
+                experienceLevel={experienceLevel}
               />
             )}
           </div>
@@ -3084,6 +3236,7 @@ function ResultCard({ result:r, onOverride, apiKey, keySaved, voiceProfile, matc
               showCoverLetter={showCoverLetter}
               showOutreach={showOutreach}
               onOpenMyResumeTab={() => setTab('Documents')}
+              experienceLevel={experienceLevel}
             />
           </div>
         )}
